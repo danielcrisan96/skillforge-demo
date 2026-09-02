@@ -1,0 +1,6 @@
+# Normalize line endings in the repository.
+* text=auto
+
+# Shell scripts must stay LF even on Windows checkouts: a CRLF shebang line
+# makes the script fail to run under Git Bash.
+*.sh text eol=lf

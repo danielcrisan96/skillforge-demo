@@ -1,0 +1,22 @@
+# Secrets - see docs/requirements.md, section 8.1.
+# Ignored from the very first commit, before any key exists.
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output (Next.js arrives in phase F1).
+node_modules/
+.next/
+out/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
