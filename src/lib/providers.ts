@@ -35,7 +35,7 @@ export type ProviderInfo = {
 
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   anthropic: {
-    id: "anthropic-haiku",
+    id: "anthropic",
     label: "Anthropic",
     modelId: "claude-haiku-4-5",
     modelLabel: "Claude Haiku 4.5",

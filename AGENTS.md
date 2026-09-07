@@ -31,6 +31,8 @@ The reason this rule exists: the agent writes the code, but the manual steps are
 - Keys live in `.env.local`, which is gitignored. Never commit a key; never paste one into a doc, a comment, or a test.
 - Do not put a secret in a client-exposed environment variable.
 - At deploy time the same variables are configured in the platform, never hardcoded.
+- The system prompt is built **only on the server**, and only in `src/lib/system-prompt.ts`. A second place that composes the persona is a bug, not an optimization — it drifts from the first within weeks and the app ends up with two personalities.
+- Data coming from the browser (the user profile, or anything else a client sends) is **untrusted input** and must be normalized on the server — explicit allowed fields, trimmed text, capped length — before it enters a prompt. Free-text fields a user can edit (like a career goal) can carry a prompt injection attempt; normalization is what keeps that text as data instead of instructions.
 
 ## Stack and code conventions
 

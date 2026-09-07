@@ -72,7 +72,7 @@ export type Conversation = {
  * `src/lib/providers.ts`, fiindcă de la F1.4 conține id-ul trimis către API —
  * o valoare de configurare, nu o formă de date.
  */
-export type ProviderId = "anthropic" | "anthropic-haiku" | "openai";
+export type ProviderId = "anthropic" | "openai";
 
 /**
  * Preferința de temă a utilizatorului — ce a ales el, nu ce se vede pe ecran.

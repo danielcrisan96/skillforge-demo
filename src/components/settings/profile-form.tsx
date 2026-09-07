@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { ShieldAlert, Trash2, TriangleAlert } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +69,7 @@ function skillsToText(skills: Skill[]): string {
 export function ProfileForm() {
   const profile = useAppStore(state => state.profile);
   const setProfile = useAppStore(state => state.setProfile);
+  const clearProfile = useAppStore(state => state.clearProfile);
 
   // Textul brut trăiește local, nu în store, pentru că în timpul tastării trece
   // prin stări invalide („React: interm"). Salvat direct, profilul ar pierde
@@ -87,6 +89,14 @@ export function ProfileForm() {
     setProfile({ ...profile, skills: parseSkills(value).skills });
   };
 
+  const handleClear = () => {
+    clearProfile();
+    // `skillsText` trăiește local (vezi comentariul de mai sus) și nu se
+    // resetează singur odată cu store-ul — trebuie golit explicit, altfel
+    // textarea ar arăta skill-urile vechi deasupra unui profil deja șters.
+    setSkillsText("");
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -96,6 +106,21 @@ export function ProfileForm() {
           sunt mai puțin generice.
         </p>
       </div>
+
+      {/* Notă de transparență: profilul e dată personală, chiar dacă nu e
+          „sensibilă" în sens legal (§8.2 din requirements). Utilizatorul are
+          dreptul să știe unde stă, cine-l vede și cum îl șterge — fără să
+          citească un README ca să afle. */}
+      <Alert>
+        <ShieldAlert />
+        <AlertTitle>Unde stă profilul tău</AlertTitle>
+        <AlertDescription>
+          Salvat doar în acest browser (<code className="font-mono">localStorage</code>), nu pe un server — alt
+          calculator sau golirea datelor de site îl șterge ireversibil, fără backup. E trimis către Anthropic
+          (providerul modelului) la fiecare mesaj din conversație, ca răspunsul să țină cont de el. Poți renunța la el
+          oricând cu butonul de mai jos.
+        </AlertDescription>
+      </Alert>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="profile-name">Nume</Label>
@@ -175,6 +200,21 @@ export function ProfileForm() {
           onChange={event => updateField("goal", event.target.value)}
           placeholder="Ex.: rol de AI Engineer în 12 luni"
         />
+      </div>
+
+      <div className="flex flex-col gap-2 border-t pt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-fit text-destructive hover:text-destructive"
+          onClick={handleClear}
+        >
+          <Trash2 />
+          Șterge profilul
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Golește numele, stack-ul, skill-urile și obiectivul din acest browser. Conversațiile nu sunt afectate.
+        </p>
       </div>
     </div>
   );

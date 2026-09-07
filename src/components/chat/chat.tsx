@@ -59,14 +59,28 @@ function Conversation({ conversationId }: { conversationId: string }) {
   const materializeConversation = useAppStore(state => state.materializeConversation);
   const isNewConversation = useAppStore(state => state.activeConversationId === null);
 
+  // Transportul, spus explicit.
+  //
+  // `prepareSendMessagesRequest` rulează la FIECARE trimitere de mesaj, nu o
+  // dată la montarea componentei. E diferența critică: dacă am fi citit
+  // profilul direct aici (`useAppStore(state => state.profile)`, capturat în
+  // closure-ul lui `useState`), am fi trimis pentru totdeauna profilul de la
+  // montare — utilizatorul își schimbă obiectivul în preferințe și modelul nu
+  // ar afla niciodată, pentru că `useState(() => new DefaultChatTransport(...))`
+  // rulează inițializatorul o singură dată. Cu `getState()` apelat înăuntrul
+  // funcției, fiecare cerere citește profilul curent din store.
+  const [transport] = useState(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        prepareSendMessagesRequest: ({ messages, id }) => ({
+          body: { messages, id, profile: useAppStore.getState().profile }
+        })
+      })
+  );
+
   const { messages, sendMessage, status, error, stop } = useChat({
-    // Transportul, spus explicit.
-    //
-    // `/api/chat` e chiar valoarea implicită, deci linia asta n-ar fi strict
-    // necesară. E scrisă pentru că ruta e contractul dintre client și server: la
-    // mutarea ei, vrem să existe un loc unde compilatorul și cititorul o găsesc,
-    // nu o convenție tăcută.
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport,
 
     // Mesajele de pornire. Conversațiile inventate au un seed (ca aplicația să
     // nu arate trei conversații goale la prima deschidere); cele create de

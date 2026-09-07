@@ -86,6 +86,15 @@ type AppState = {
   setHasHydrated: (value: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setProfile: (profile: Profile) => void;
+  /**
+   * Golește profilul, păstrând doar `userId`.
+   *
+   * E cerința din §8.2: profilul se poate șterge complet din interfață, în
+   * orice fază — pentru că e dată personală, iar utilizatorul trebuie să poată
+   * reveni la „aplicația nu știe nimic despre mine" fără să umble prin
+   * DevTools sau setările browserului.
+   */
+  clearProfile: () => void;
   setProviderId: (providerId: ProviderId) => void;
   setTheme: (theme: ThemePreference) => void;
 
@@ -120,6 +129,10 @@ export const useAppStore = create<AppState>()(
       setHasHydrated: value => set({ hasHydrated: value }),
       setSettingsOpen: open => set({ isSettingsOpen: open }),
       setProfile: profile => set({ profile }),
+      clearProfile: () =>
+        set(state => ({
+          profile: { userId: state.profile.userId, name: "", stack: "", skills: [], goal: "" }
+        })),
       setProviderId: providerId => set({ providerId }),
       setTheme: theme => set({ theme }),
 

@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { APICallError, convertToModelMessages, streamText, type UIMessage } from "ai";
 
+import { buildSystemPrompt } from "@/lib/system-prompt";
 import { DEFAULT_MODEL_ID } from "@/lib/providers";
 
 // Ruta pe care stă agentul.
@@ -21,7 +22,7 @@ import { DEFAULT_MODEL_ID } from "@/lib/providers";
 export const runtime = "nodejs";
 
 /**
- * Ce trimite clientul: mesajele în formatul de UI.
+ * Ce trimite clientul: mesajele în formatul de UI, plus profilul utilizatorului.
  *
  * Sunt DOUĂ formate de mesaj în joc, iar confuzia dintre ele e capcana clasică
  * a pasului. `UIMessage` descrie ce se AFIȘEAZĂ — are `id` (React are nevoie de
@@ -31,9 +32,14 @@ export const runtime = "nodejs";
  *
  * `convertToModelMessages` face traducerea. Trimis direct, un `UIMessage` ar
  * duce la provider câmpuri pe care acesta nu le înțelege.
+ *
+ * Profilul vine de la client la fiecare mesaj. E input neîncredere și se
+ * normalizează în `buildSystemPrompt`, care nu-l lasă să injecteze instrucțiuni
+ * în prompt.
  */
 type ChatRequestBody = {
   messages: UIMessage[];
+  profile?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -62,7 +68,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages }: ChatRequestBody = await request.json();
+  const { messages, profile }: ChatRequestBody = await request.json();
+
+  // System prompt-ul se construiește din profil pe server, nu pe client.
+  //
+  // Motivele sunt critice: dacă textul personei ajunge în browser, oricine îl
+  // poate citi și, mai grav, îl poate înlocui. Orice cheie de API sau detaliu
+  // de implementare care ajunge în prompt ar trebui să stea pe server. Și profilul
+  // e input neîncredere — se normalizează înainte să intre în prompt.
+  const systemPrompt = buildSystemPrompt(profile);
 
   const result = streamText({
     // Modelul vine din registru, nu scris aici. Vezi `src/lib/providers.ts`
@@ -72,6 +86,11 @@ export async function POST(request: Request) {
     // `ANTHROPIC_API_KEY` din mediu. Verificarea de mai sus există ca să dăm un
     // mesaj bun ÎNAINTE să ajungem aici, nu ca să transportăm noi secretul.
     model: anthropic(DEFAULT_MODEL_ID),
+
+    // Persona și guardrail-uri, construite din profilul utilizatorului.
+    //
+    // Injectat pe server, nu livrat din client. Textul stă aici, nu în browser.
+    system: systemPrompt,
 
     // `await`: în AI SDK 7 conversia e ASINCRONĂ, fiindcă unele părți de mesaj
     // (fișiere, atașamente) pot avea nevoie să fie descărcate. Fără `await`, în

@@ -1,7 +1,8 @@
 "use client";
 
-import { Compass, GraduationCap, Target, Wand2, type LucideIcon } from "lucide-react";
+import { Compass, GraduationCap, Target, User, Wand2, type LucideIcon } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -53,6 +54,7 @@ const SUGGESTIONS: Suggestion[] = [
 
 export function EmptyState({ onSuggestionSelect }: { onSuggestionSelect: (prompt: string) => void }) {
   const name = useAppStore(state => state.profile.name);
+  const goal = useAppStore(state => state.profile.goal);
 
   return (
     <div className="flex flex-col items-center gap-8 text-center">
@@ -61,6 +63,24 @@ export function EmptyState({ onSuggestionSelect }: { onSuggestionSelect: (prompt
         <p className="text-lg text-muted-foreground">
           {name ? `Salut, ${name}. Cu ce mergem mai departe?` : "Cu ce mergem mai departe?"}
         </p>
+
+        {/* Singurul semn din interfață că profilul chiar ajunge la model —
+            fără el, testarea personei ar însemna ghicit din răspunsuri. Textul
+            arată exact ce va folosi system prompt-ul, ca discrepanța dintre
+            „am completat profilul" și „modelul îl vede" să fie vizibilă imediat. */}
+        <div className="mt-1 flex justify-center">
+          {goal ? (
+            <Badge variant="secondary">
+              <Target />
+              Profil activ · {goal}
+            </Badge>
+          ) : (
+            <Badge variant="outline">
+              <User />
+              Profil necompletat — răspunsurile vor fi generice
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap justify-center gap-2">
