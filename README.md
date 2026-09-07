@@ -18,6 +18,15 @@ npm run dev                   # http://localhost:3000
 
 `.env.local` nu se comite niciodată. `.env.example` se comite și spune ce variabile există — el e lista de referință.
 
+### Dacă vii din Vite + React
+
+|                    | Vite + React                                                                                    | Next.js (App Router)                                                                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rutare             | manuală, cu o bibliotecă (react-router) și un component `<Route>` per pagină                    | **de fișiere**: un folder cu `page.tsx` sub `src/app/` = o rută. `src/app/demo/page.tsx` devine `/demo` fără nicio înregistrare                                                                       |
+| Unde rulează codul | totul în browser — Vite servește un bundle static, fără server propriu                          | ambele: component **server** (implicit) rulează doar pe server și nu ajunge în bundle; `"use client"` marchează explicit ce ajunge și în browser                                                      |
+| Variabile de mediu | orice `VITE_*` e injectată în bundle-ul de client la build — vizibilă oricui deschide aplicația | fără prefix, o variabilă există **doar pe server**; ajunge în browser doar dacă începe cu `NEXT_PUBLIC_`. Regula e pe dos față de Vite — de asta o cheie de API stă aici fără prefix, niciodată cu el |
+| Deploy             | un folder de fișiere statice (`dist/`), servit de orice hosting static                          | necesită o platformă care rulează Node (Vercel, sau orice altceva cu suport Next) — codul de server chiar rulează la fiecare cerere, nu doar la build                                                 |
+
 ### Comenzi
 
 | Comandă                          | Ce face                                                                      |
@@ -57,12 +66,13 @@ Codul e comentat în română și comentariile explică _de ce_ e scris așa —
 
 ## Documentație
 
-| Fișier                                                       | Ce conține                                                                                             |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| [`docs/requirements.md`](docs/requirements.md)               | **Sursa de adevăr**: ce construim, pentru cine, fazele, cerințele non-funcționale, glosarul            |
-| [`AGENTS.md`](AGENTS.md)                                     | Convențiile pentru agenții AI care lucrează pe proiect (singurul fișier de instrucțiuni editat manual) |
-| [`docs/_TEMPLATE-integrare.md`](docs/_TEMPLATE-integrare.md) | Șablonul pentru pașii manuali ai fiecărei integrări externe                                            |
-| [`docs/vercel/README.md`](docs/vercel/README.md)             | Pașii manuali pentru repo pe GitHub și deploy pe Vercel                                                |
+| Fișier                                                 | Ce conține                                                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| [`docs/requirements.md`](docs/requirements.md)         | **Sursa de adevăr**: ce construim, pentru cine, fazele, cerințele non-funcționale, glosarul            |
+| [`AGENTS.md`](AGENTS.md)                               | Convențiile pentru agenții AI care lucrează pe proiect (singurul fișier de instrucțiuni editat manual) |
+| [`docs/README.md`](docs/README.md)                     | Indexul documentației — tabelul cu integrările externe și la ce pas a intrat fiecare                   |
+| [`docs/_template/README.md`](docs/_template/README.md) | Șablonul pentru pașii manuali ai fiecărei integrări externe                                            |
+| [`docs/vercel/README.md`](docs/vercel/README.md)       | Pașii manuali pentru repo pe GitHub și deploy pe Vercel                                                |
 
 Fiecare integrare externă (provider de LLM, bază de date, autentificare, deploy) primește propriul `docs/<integrare>/README.md` cu partea care se face de mână: cont, generarea cheii, variabila de mediu, configurări în dashboard, costuri.
 

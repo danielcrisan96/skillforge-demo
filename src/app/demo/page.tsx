@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Counter } from "@/components/Counter";
 import { HelloProbe } from "@/components/HelloProbe";
+import { ServerClock } from "@/components/ServerClock";
 import { Button } from "@/components/ui/button";
 
 // Ruta „/demo" există pentru că există folderul `src/app/demo/` cu un `page.tsx`
@@ -19,6 +21,25 @@ export default function DemoPage() {
           înapoi în browser.
         </p>
       </header>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Component client vs. component server</h2>
+        <p className="text-sm text-muted-foreground">
+          Aceleași cifre din browser (stânga) și de pe server (dreapta), randate una lângă alta — ca diferența dintre
+          ele să se vadă, nu doar să se explice.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border p-6">
+            <Counter />
+          </div>
+          <div className="rounded-xl border p-6">
+            {/* `ServerClock` e un component de server async — poate fi randat
+                direct dintr-un alt component de server, fără vreun `await`
+                explicit aici: React așteaptă singur promisiunea, la randare. */}
+            <ServerClock />
+          </div>
+        </div>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Endpoint propriu</h2>

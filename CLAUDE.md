@@ -21,17 +21,10 @@ Do not restate requirements in other files. Other documents link to it.
 
 ## Every external integration ships a manual-steps doc
 
-Whenever we add an external integration — an LLM provider, a database, authentication, deploy, monitoring — you **must** also write `docs/<integration>/README.md` covering the part the human does by hand:
+Whenever we add an external integration — an LLM provider, a database, authentication, deploy, monitoring — you **must**, in the same commit as the code:
 
-- where the account is created, and which plan is needed
-- where the API key or credential is generated
-- **which environment variable it goes into** (name only)
-- what has to be configured in their dashboard
-- what it costs, with a link to the official pricing page and the date it was checked
-- how to verify it works
-- what to do when the key is rotated or revoked
-
-Use [`docs/_TEMPLATE-integrare.md`](docs/_TEMPLATE-integrare.md) as the template.
+1. write `docs/<integration>/README.md`, covering the part the human does by hand: where the account is created and which plan is needed, where the API key or credential is generated, **which environment variable it goes into** (name only), what has to be configured in their dashboard, what it costs (with a link to the official pricing page and the date it was checked), and how to verify it works. Use [`docs/_template/README.md`](docs/_template/README.md) as the template.
+2. add a row for it to the table in [`docs/README.md`](docs/README.md).
 
 The reason this rule exists: the agent writes the code, but the manual steps are the human's, and they are forgotten immediately. On a reinstall, on another machine, or at deploy time they would be hunted down from scratch.
 

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Chat } from "@/components/chat/chat";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -37,6 +39,18 @@ export default function Home() {
           lui ar ajunge cu două capcane de focus una în alta și s-ar închide odată
           cu panoul. */}
       <SettingsDialog />
+
+      {/* Singura legătură din aplicație către „/demo". Nu contrazice decizia de
+          mai sus (o singură rută pentru starea aplicației) — „/demo" nu e o
+          stare a aplicației, e material de curs care arată structura de rutare
+          înainte să existe conținut. Rămâne discretă intenționat: nu face parte
+          din produs, doar din antierul lui. */}
+      <Link
+        href="/demo"
+        className="fixed right-3 bottom-3 text-xs text-muted-foreground underline-offset-4 hover:underline"
+      >
+        /demo
+      </Link>
     </SidebarProvider>
   );
 }
