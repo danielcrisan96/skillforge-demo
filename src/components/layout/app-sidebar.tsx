@@ -27,7 +27,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
   useSidebar
 } from "@/components/ui/sidebar";
 import { useAppStore } from "@/store/useAppStore";
@@ -133,10 +132,19 @@ export function AppSidebar() {
                 utilizator de jos rămân mereu la vedere, oricât de lungă devine. */}
             <ScrollArea className="h-full">
               <SidebarMenu className="pr-1">
+                {/* Lățimi FIXE, scrise de noi.
+                    `SidebarMenuSkeleton` din shadcn ar fi fost varianta
+                    evidentă, dar își alege lățimea cu `Math.random()`: serverul
+                    ar nimeri un procent, browserul altul, iar React ar raporta
+                    o nepotrivire de hidratare — exact ce încearcă să prevină
+                    poarta de mai sus. Lățimi diferite între rânduri, ca să arate
+                    a listă, dar aceleași la fiecare randare. */}
                 {!isHydrated &&
-                  [0, 1, 2].map(row => (
-                    <SidebarMenuItem key={row}>
-                      <SidebarMenuSkeleton />
+                  ["w-3/4", "w-1/2", "w-2/3"].map(width => (
+                    <SidebarMenuItem key={width}>
+                      <div className="flex h-8 items-center px-2">
+                        <Skeleton className={`h-4 ${width}`} />
+                      </div>
                     </SidebarMenuItem>
                   ))}
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, type ComponentType } from "react";
-import { Settings, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { Info, Settings, Sparkles, UserRound, type LucideIcon } from "lucide-react";
 
+import { AboutForm } from "@/components/settings/about-form";
 import { AppearanceForm } from "@/components/settings/appearance-form";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { ProvidersForm } from "@/components/settings/providers-form";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -37,10 +37,11 @@ type SettingsSection = {
  * dreapta se actualizează amândouă din aceeași sursă, deci nu pot ajunge să se
  * contrazică (o intrare în meniu fără conținut, sau invers).
  */
-const SETTINGS_SECTIONS: SettingsSection[] = [
+const SECTIONS: SettingsSection[] = [
   { id: "general", label: "General", icon: Settings, Panel: AppearanceForm },
   { id: "profile", label: "Profilul tău", icon: UserRound, Panel: ProfileForm },
-  { id: "providers", label: "Providere", icon: Sparkles, Panel: ProvidersForm }
+  { id: "providers", label: "Providere", icon: Sparkles, Panel: ProvidersForm },
+  { id: "about", label: "Despre aplicație", icon: Info, Panel: AboutForm }
 ];
 
 export function SettingsDialog() {
@@ -49,9 +50,9 @@ export function SettingsDialog() {
 
   // Secțiunea activă e stare locală: e o poziție în interfață, care nu
   // interesează pe nimeni altcineva și nu are rost să supraviețuiască închiderii.
-  const [activeId, setActiveId] = useState(SETTINGS_SECTIONS[0].id);
+  const [activeId, setActiveId] = useState(SECTIONS[0].id);
 
-  const activeSection = SETTINGS_SECTIONS.find(section => section.id === activeId) ?? SETTINGS_SECTIONS[0];
+  const activeSection = SECTIONS.find(section => section.id === activeId) ?? SECTIONS[0];
   const ActivePanel = activeSection.Panel;
 
   return (
@@ -71,7 +72,7 @@ export function SettingsDialog() {
           {/* Navigația. Pe mobil devine un rând orizontal, pentru că o coloană
               de 14rem ar mânca jumătate din lățimea ecranului. */}
           <nav className="flex shrink-0 gap-1 overflow-x-auto border-b bg-muted/40 p-2 sm:w-52 sm:flex-col sm:border-r sm:border-b-0 sm:p-3">
-            {SETTINGS_SECTIONS.map(section => {
+            {SECTIONS.map(section => {
               const isActive = section.id === activeSection.id;
 
               return (
@@ -93,14 +94,34 @@ export function SettingsDialog() {
             })}
           </nav>
 
-          {/* Conținutul se derulează separat de navigație: formularul de profil
-              e mai înalt decât fereastra, iar dacă s-ar derula tot dialogul,
-              navigația ar dispărea de sub degete. */}
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="p-6">
+          {/* Zona din dreapta. Se derulează separat de navigație: formularul de
+              profil e mai înalt decât fereastra, iar dacă s-ar derula tot
+              dialogul, navigația ar dispărea de sub degete.
+
+              Patru lucruri, care trebuie să existe împreună:
+
+              1. `div` cu `overflow-y-auto`, NU `ScrollArea` din shadcn. Radix
+                 inserează între viewport și copil un wrapper cu `display: table`,
+                 care se dimensionează după conținut — deci o înălțime în procente
+                 pusă înăuntru s-ar rezolva circular și n-ar da nimic.
+              2. `min-h-0` pe containerul care derulează, altfel `flex-1` nu-l
+                 poate face mai mic decât conținutul.
+              3. `h-full` pe cutia dinăuntru: îi dă panoului o înălțime DEFINITĂ,
+                 de care se poate agăța un `flex-1` din interiorul unei secțiuni
+                 (vezi `about-form.tsx`). Un `min-h-full` n-ar fi de ajuns — ăla e
+                 doar un minim, deci panoul ar crește după conținut și bara de jos
+                 a secțiunii ar ajunge sub marginea ferestrei.
+              4. Spațierea (`p-6`) stă pe containerul care DERULEAZĂ, nu pe cutia
+                 cu `h-full`. Pusă pe cutie, ea ar rămâne prinsă la marginea de jos
+                 a celor 100% înălțime, iar conținutul mai înalt (formularul de
+                 profil) ar curge PESTE ea: derulat până la capăt, ultimul câmp ar
+                 atinge muchia ferestrei. Pe containerul de derulare, spațiul de jos
+                 face parte din zona derulabilă și se vede și la final. */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="h-full">
               <ActivePanel />
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

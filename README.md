@@ -42,7 +42,7 @@ npm run dev                   # http://localhost:3000
 
 ### Ce există acum
 
-Faza curentă e **F1** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul) și **F1.2 (interfața completă)** sunt livrați.
+Faza curentă e **F1** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă) și **F1.3 (streaming de la server)** sunt livrați.
 
 **Aplicația funcționează integral pe date inventate. Nu există niciun apel către un model de limbaj și nicio cheie de API** — pornește pe orice laptop, fără configurare.
 
@@ -53,14 +53,18 @@ Ce poți face:
 - îți editezi profilul (nume, stack, skills, obiectiv) din preferințe
 - schimbi tema — sistem, luminoasă sau întunecată, doar din preferințe
 - folosești aplicația pe telefon: sidebar-ul intră într-un panou glisant
+- deschizi preferințele → **„Despre aplicație”** și vezi un text venind de pe server bucată cu bucată, prin SSE — fără niciun model de limbaj în spate
 
-| Rută         | Ce arată                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| `/`          | Aplicația: sidebar, bară de sus, conversație                                                      |
-| `/demo`      | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                    |
-| `/api/hello` | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul |
+| Rută         | Ce arată                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `/`          | Aplicația: sidebar, bară de sus, conversație                                                                     |
+| `/demo`      | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                                   |
+| `/api/hello` | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul                |
+| `/api/about` | Trimite descrierea aplicației **în streaming** (SSE). Repetiția protocolului pe care va veni răspunsul modelului |
 
 Unde se schimbă datele inventate cu date reale: [`src/lib/mock/`](src/lib/mock/) și acțiunea `sendMessage` din [`src/store/useAppStore.ts`](src/store/useAppStore.ts). În rest, nimic nu știe de unde vine textul.
+
+Cum se citește un stream fără nicio bibliotecă: [`src/app/api/about/route.ts`](src/app/api/about/route.ts) (serverul) și [`src/components/settings/about-form.tsx`](src/components/settings/about-form.tsx) (clientul). Al doilea rămâne aproape neschimbat când sursa devine un model real — protocolul e același.
 
 Codul e comentat în română și comentariile explică _de ce_ e scris așa — sunt parte din materialul de curs, nu decor.
 
