@@ -1,0 +1,24 @@
+# Prettier NU combină fișierele de ignore: îl folosește doar pe cel mai apropiat
+# de fișierul formatat. Deci acesta trebuie să fie complet, nu o completare a
+# altuia dintr-un folder părinte.
+#
+# Conține ce produce efectiv un proiect Next.js. (`dist` lipsește intenționat:
+# acela e folderul de build al unui proiect Vite, nu al unuia Next.)
+
+node_modules
+.next
+out
+coverage
+package-lock.json
+.DS_Store
+
+# Fișierele de instrucțiuni pentru agenți. CLAUDE.md și copilot-instructions.md
+# sunt copii la caracter ale lui AGENTS.md, făcute de `scripts/sync-agent-docs.sh`.
+#
+# Sunt excluse toate trei, sursa inclusă. Dacă Prettier ar formata doar sursa,
+# ea n-ar mai fi identică cu copiile, iar `scripts/check-agent-docs.sh` ar pica
+# după fiecare `npm run format` — până cineva își amintește să ruleze și sync-ul.
+# Excluse împreună, ordinea celor două comenzi nu mai contează.
+AGENTS.md
+CLAUDE.md
+.github/copilot-instructions.md

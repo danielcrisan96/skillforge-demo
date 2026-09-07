@@ -19,12 +19,12 @@ Aplicația este în același timp **proiectul-fir-roșu al unui curs**: se const
 
 Pentru oricine vrea să crească profesional și are nevoie de un plan, indiferent din ce direcție vine:
 
-| Persona | Punct de plecare | Obiectiv tipic |
-|---|---|---|
-| Backend spre AI | Java/C#/Go, ani de experiență pe server | Web modern + AI engineering |
-| Frontend care lărgește | React/TypeScript solid | Python sau Java, partea de backend |
-| QA spre automatizare | Testare manuală, cunoștințe de domeniu | Automatizare, CI, cod de test |
-| Junior nedecis | Bazele, fără direcție clară | Să afle ce merită aprofundat |
+| Persona                | Punct de plecare                        | Obiectiv tipic                     |
+| ---------------------- | --------------------------------------- | ---------------------------------- |
+| Backend spre AI        | Java/C#/Go, ani de experiență pe server | Web modern + AI engineering        |
+| Frontend care lărgește | React/TypeScript solid                  | Python sau Java, partea de backend |
+| QA spre automatizare   | Testare manuală, cunoștințe de domeniu  | Automatizare, CI, cod de test      |
+| Junior nedecis         | Bazele, fără direcție clară             | Să afle ce merită aprofundat       |
 
 **Numitorul comun nu este tehnologia, ci faptul că fiecare pornește din alt punct spre alt obiectiv.** De aici greutatea disproporționată pe care o are profilul în această aplicație: fără el, orice răspuns este generic; cu el, același model dă un răspuns util.
 
@@ -50,16 +50,19 @@ SkillForge există ca să fie **unealta ta**: profilul persistă, se actualizeaz
 Acestea sunt întrebările la care aplicația trebuie să răspundă bine. Ele se folosesc mai târziu ca **teste de acceptanță** — la fiecare fază verificăm dacă răspunsul s-a îmbunătățit față de faza anterioară.
 
 **UC-1 — Analiză de lipsuri (gap analysis)**
+
 > „Ce-mi lipsește ca să trec de la Java backend la AI engineer?"
 
 Răspunsul bun pornește de la skill-urile din profil și numește ce lipsește **raportat la ele**, nu o listă generică de subiecte.
 
 **UC-2 — Plan pe termen determinat**
+
 > „Fă-mi un plan de 3 luni pentru Next.js + AI SDK."
 
 Răspunsul bun ține cont de nivelul curent și de timpul disponibil, și produce pași concreți, ordonați.
 
 **UC-3 — Continuitate între sesiuni**
+
 > „Ține minte că am terminat modulul de streaming — ce urmează?"
 
 Răspunsul bun presupune că aplicația reține informația și că **următoarea sesiune** o folosește fără să i se reamintească.
@@ -68,26 +71,35 @@ Răspunsul bun presupune că aplicația reține informația și că **următoare
 
 Aceste decizii sunt luate și nu se redeschid la fiecare modul. Dacă una se schimbă, se schimbă **aici**.
 
-| # | Decizie | De ce |
-|---|---|---|
-| D-1 | **În centru stă un agent**, nu un formular care trimite text la model și afișează rezultatul | Agentul primește context (profil, memorie) și, din faza F5, decide singur să folosească unelte. Această diferență dictează structura codului de la început. |
-| D-2 | **Next.js + TypeScript (strict)** | Un singur proiect care conține și UI-ul, și codul de server. TypeScript pentru că tipurile care traversează granița client/server (profil, mesaje, contract de provider) trebuie să fie explicite, nu presupuse. |
-| D-3 | **Modelul se cheamă exclusiv de pe server** | Cheia de API nu ajunge niciodată în browser. Orice cod care atinge o cheie trăiește în partea de server. |
-| D-4 | **Provider de LLM schimbabil**, în spatele unei interfețe tipizate | Ca să putem compara răspunsuri și costuri între Anthropic și OpenAI fără să rescriem aplicația. |
-| D-5 | **Răspuns în streaming** | Cerință de UX, nu detaliu tehnic: un plan de învățare e un răspuns lung, iar așteptarea în gol face aplicația să pară blocată. |
-| D-6 | **System prompt construit din profilul real** | Este mecanismul prin care „răspunde în contextul meu" devine concret. |
-| D-7 | **Un singur profil acum, `userId` în model de la început** | Faza 1 nu are login, dar datele se modelează ca și cum ar avea. Autentificarea (F6) devine astfel un modul adăugat, nu o rescriere. |
-| D-8 | **Fără chei reale în documentație** — doar numele variabilelor | Documentația se comite în git; cheile nu. |
+| #    | Decizie                                                                                      | De ce                                                                                                                                                                                                                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D-1  | **În centru stă un agent**, nu un formular care trimite text la model și afișează rezultatul | Agentul primește context (profil, memorie) și, din faza F5, decide singur să folosească unelte. Această diferență dictează structura codului de la început.                                                                                                                                |
+| D-2  | **Next.js + TypeScript (strict)**                                                            | Un singur proiect care conține și UI-ul, și codul de server. TypeScript pentru că tipurile care traversează granița client/server (profil, mesaje, contract de provider) trebuie să fie explicite, nu presupuse.                                                                           |
+| D-3  | **Modelul se cheamă exclusiv de pe server**                                                  | Cheia de API nu ajunge niciodată în browser. Orice cod care atinge o cheie trăiește în partea de server.                                                                                                                                                                                   |
+| D-4  | **Provider de LLM schimbabil**, în spatele unei interfețe tipizate                           | Ca să putem compara răspunsuri și costuri între Anthropic și OpenAI fără să rescriem aplicația.                                                                                                                                                                                            |
+| D-5  | **Răspuns în streaming**                                                                     | Cerință de UX, nu detaliu tehnic: un plan de învățare e un răspuns lung, iar așteptarea în gol face aplicația să pară blocată.                                                                                                                                                             |
+| D-6  | **System prompt construit din profilul real**                                                | Este mecanismul prin care „răspunde în contextul meu" devine concret.                                                                                                                                                                                                                      |
+| D-7  | **Un singur profil acum, `userId` în model de la început**                                   | Faza 1 nu are login, dar datele se modelează ca și cum ar avea. Autentificarea (F6) devine astfel un modul adăugat, nu o rescriere.                                                                                                                                                        |
+| D-8  | **Fără chei reale în documentație** — doar numele variabilelor                               | Documentația se comite în git; cheile nu.                                                                                                                                                                                                                                                  |
+| D-9  | **Orice element de UI vine din shadcn/ui** (`src/components/ui/`), nu scris de mână          | shadcn copiază codul în proiect, deci rămâne modificabil. Câștigul real e consistența stărilor ușor de uitat: focus la navigarea cu tastatura, `disabled`, contrast în tema întunecată.                                                                                                    |
+| D-10 | **Formatarea e fixată de Prettier**, cu setările comise în repo                              | Fără ele, diferențele dintre commit-uri ar fi spații și ghilimele, nu cod — iar la doi oameni cu editoare diferite, fiecare salvare ar rescrie fișierul.                                                                                                                                   |
+| D-11 | **Blocul de reguli scris de `next dev` stă în `AGENTS.md`**                                  | `next dev` își (re)adaugă singur un bloc de instrucțiuni pentru agenți. Îl scrie într-un singur fișier și îl preferă pe `AGENTS.md` dacă acesta îl conține deja — așa `CLAUDE.md` rămâne pur generat, iar scriptul de sync nu se bate cu Next pe același fișier.                           |
+| D-12 | **Starea aplicației în Zustand cu `persist`** (`localStorage`, cheia `skillforge-app`)       | Aceleași date sunt citite din trei locuri neînrudite în arbore (sidebar, preferințe, chat); prin props ar fi însemnat componente intermediare care car date de care nu le pasă. `persist` există ca lista de conversații să supraviețuiască unui refresh înainte să existe o bază de date. |
+| D-13 | **UI exclusiv din shadcn/ui + Tailwind; iconițe exclusiv din `lucide-react`**                | Zero CSS scris de mână și o singură sursă de iconițe. Extinde D-9: consecvența se obține din constrângere, nu din disciplină.                                                                                                                                                              |
+| D-14 | **Datele inventate stau doar în `src/lib/mock/`**                                            | Ca înlocuirea lor cu date reale să fie o singură atingere, nu o vânătoare prin componente. Corolar: niciun text inventat nu se scrie direct într-un component.                                                                                                                             |
+| D-15 | **Tema se schimbă doar din preferințe**, nu dintr-un buton în bara de sus                    | Tema e o preferință, nu o acțiune repetată. Bara de sus rămâne pentru conversație. Preferința („sistem"/„light"/„dark") e ținută separat de tema efectivă, ca „sistem" să poată urmări în timp real sistemul de operare.                                                                   |
+| D-16 | **Interfața completă, pe date inventate, ÎNAINTE de integrarea cu un model**                 | Cu apelurile la LLM pe primul loc, timpul se duce în chei și streaming, iar aplicația nu există încă. Ordinea asta dă o versiune publicabilă peste care integrarea e o schimbare izolată — și mută deployul (inițial în F7) mai devreme, ca plasă de siguranță.                            |
 
 ## 7. Cerințe pe faze
 
 Fiecare fază are un **scop**, ce **livrează** și un **criteriu de gata**. Ce nu e în faza curentă e explicit amânat, nu uitat.
 
-### F0 — Fundația documentară ← *faza curentă*
+### F0 — Fundația documentară ✅ _încheiată (2026-09-02)_
 
 **Scop:** proiectul să-și țină minte singur ce construim și ce a trebuit făcut manual.
 
 Livrează:
+
 - `docs/requirements.md` (acest document) ca sursă de adevăr
 - `AGENTS.md` + fișierele generate `CLAUDE.md` și `.github/copilot-instructions.md`
 - `scripts/sync-agent-docs.sh` și `scripts/check-agent-docs.sh` pentru sincronizarea lor
@@ -100,20 +112,66 @@ Livrează:
 
 ---
 
-### F1 — Schelet și chat cu streaming
+### F1 — Schelet și chat cu streaming ← _faza curentă_
 
 **Scop:** primul răspuns de la un model, ajuns în browser token cu token.
 
 Livrează:
-- proiect Next.js + TypeScript
-- un endpoint pe server care apelează modelul și returnează un stream
-- o interfață de chat care afișează răspunsul pe măsură ce vine
-- system prompt **static** (încă nu depinde de profil)
-- `docs/anthropic/README.md` — pașii manuali pentru cheia de API
+
+- ✅ proiect Next.js + TypeScript
+- ✅ interfața completă de chat, funcțională pe date inventate
+- ⬜ un endpoint pe server care apelează modelul și returnează un stream
+- ⬜ afișarea răspunsului pe măsură ce vine
+- ⬜ system prompt **static** (încă nu depinde de profil)
+- ⬜ `docs/anthropic/README.md` — pașii manuali pentru cheia de API
 
 **Gata când:** pui o întrebare și vezi răspunsul curgând, iar cheia de API nu apare nicăieri în ce ajunge la browser.
 
-**Amânat:** profil, memorie, al doilea provider, unelte.
+Faza s-a împărțit în trei pași, ca să nu se amestece „am învățat Next", „am construit interfața" și „am integrat un LLM". Primii doi nu conțin niciun apel la model.
+
+#### F1.1 — Scheletul ✅ _livrat (2026-09-02)_
+
+Livrat:
+
+- proiect Next.js 16 (App Router) + TypeScript strict, Tailwind v4, shadcn/ui, Prettier
+- rutele `/` și `/demo`, ca structura de rutare să fie stabilită înainte să existe conținut
+- `Counter` (component client) lângă `ServerClock` (component server), ca granița dintre ele să fie vizibilă pe ecran
+- `src/app/api/hello/route.ts` — Route Handler care citește o variabilă de mediu de pe server; strămoșul direct al lui `src/app/api/chat/route.ts`
+- `.env.example` comis, `.env.local` gitignorat
+
+A fixat deciziile **D-9** (UI din shadcn/ui), **D-10** (Prettier cu setări comise) și **D-11** (blocul `next dev` în `AGENTS.md`) — vezi §6.
+
+**Amânat explicit la F1.2:** interfața de chat și orice apel la un model.
+
+#### F1.2 — Interfața completă, pe date inventate ✅ _livrat (2026-09-02)_
+
+**Scop:** o aplicație care merge și se poate publica **înainte** de orice integrare cu un model.
+
+Motivul acestei ordini: pornind direct cu apeluri către LLM, timpul se duce în chei de API și streaming, iar aplicația încă nu există. Așa există o versiune de siguranță, deployabilă, peste care integrarea devine o schimbare izolată.
+
+Livrat:
+
+- trei zone: sidebar (buton de conversație nouă, listă de conversații, rândul de utilizator), bară de sus minimă, zona de conversație
+- preferințe ca **fereastră separată** (`Dialog`), cu trei secțiuni: Aspect, Profilul tău, Providere
+- composer cu `Enter` trimite / `Shift+Enter` linie nouă, indicator de provider și comutare `Send` / `Stop`
+- toate stările de interfață: ecran gol cu sugestii, `Skeleton` la încărcare, indicator „scrie…", `Alert` pentru erori de validare
+- responsive: pe mobil sidebar-ul intră în `Sheet`, verificat la 390px
+- stare persistată în `localStorage` (Zustand + `persist`, cheia `skillforge-app`)
+- date inventate izolate în `src/lib/mock/`
+
+**Gata când:** se poate naviga prin toată aplicația, se pot crea, redenumi și șterge conversații, iar totul supraviețuiește unui refresh — fără nicio cheie de API și fără configurare.
+
+A fixat deciziile **D-12** … **D-16** — vezi §6.
+
+**Aduse mai devreme, intenționat, dar DOAR ca interfață:** formularul de profil (din F2) și selecția de provider (din F4). Ce rămâne în fazele lor: construirea system prompt-ului din profil (F2) și apelul real către al doilea provider (F4).
+
+#### F1.3 — Chat cu streaming ⬜ _faza curentă_
+
+Ce mai rămâne din F1: `src/app/api/chat/route.ts`, apelul real către model, citirea stream-ului în interfață și `docs/anthropic/README.md`.
+
+Punctul de înlocuire e unul singur și e marcat în cod: acțiunea `sendMessage` din `src/store/useAppStore.ts`, care acum pune un text fix din `src/lib/mock/conversations.ts`.
+
+**Amânat:** memorie, unelte.
 
 ---
 
@@ -122,6 +180,7 @@ Livrează:
 **Scop:** aplicația să știe cine ești; aici se naște diferența față de un chat generic.
 
 Livrează:
+
 - model de date pentru profil: stack curent, listă de skill-uri cu nivel, obiectiv, timp disponibil de învățare; fiecare profil are un `userId` (vezi D-7)
 - formular de editare a profilului
 - salvare în `localStorage` (vezi §8.2 pentru consecințe)
@@ -137,6 +196,7 @@ Livrează:
 **Scop:** progresul se acumulează; UC-3 devine posibil.
 
 Livrează:
+
 - istoricul conversațiilor, cu reluarea unei conversații anterioare
 - **fapte reținute** — informații pe care agentul le extrage și le păstrează separat de istoric („a terminat modulul de streaming")
 - o strategie explicită pentru limita de context: ce intră în prompt când istoricul crește peste ce încape
@@ -150,6 +210,7 @@ Livrează:
 **Scop:** D-4 devine real și verificabil.
 
 Livrează:
+
 - interfața comună de provider, cu Anthropic și OpenAI ca implementări
 - comutare de provider/model din interfață
 - afișarea consumului: tokeni de intrare/ieșire și cost estimat per răspuns
@@ -164,6 +225,7 @@ Livrează:
 **Scop:** agentul acționează, nu doar răspunde.
 
 Livrează:
+
 - unealtă de căutare în notițele proprii
 - unealtă de actualizare a planului de învățare
 - afișarea în interfață a faptului că agentul a folosit o unealtă, și care
@@ -177,6 +239,7 @@ Livrează:
 **Scop:** datele supraviețuiesc browserului; aplicația devine multi-user.
 
 Livrează:
+
 - Supabase ca bază de date; migrarea profilului și a memoriei din `localStorage`
 - autentificare; `userId` din D-7 devine utilizatorul real
 - izolarea datelor între utilizatori
@@ -190,10 +253,13 @@ Livrează:
 
 **Scop:** aplicația e online și se știe cât costă.
 
+> **Deployul propriu-zis s-a mutat mai devreme, în F1.2** (vezi D-16): o versiune publicabilă pe date inventate e plasa de siguranță dinaintea oricărei integrări. Pașii manuali sunt în [`docs/vercel/README.md`](./vercel/README.md). Ce rămâne aici e partea care are sens abia când există costuri reale.
+
 Livrează:
-- deploy, cu variabilele de mediu configurate în platformă
-- monitorizarea erorilor și a consumului de tokeni
-- `docs/deploy/README.md`
+
+- ✅ deploy (mutat în F1.2)
+- ⬜ variabilele de mediu ale providerilor, configurate în platformă
+- ⬜ monitorizarea erorilor și a consumului de tokeni
 
 **Gata când:** aplicația e accesibilă pe un URL public și se poate spune cât a costat ultima săptămână.
 
@@ -219,10 +285,10 @@ Profilul conține date despre tine: stack, skill-uri și nivel, obiectiv profesi
 
 **Ce se întâmplă cu ele, pe fază:**
 
-| Fază | Unde stau | Cine le mai vede |
-|---|---|---|
+| Fază  | Unde stau                        | Cine le mai vede                                                   |
+| ----- | -------------------------------- | ------------------------------------------------------------------ |
 | F2–F5 | `localStorage`, în browserul tău | Providerul LLM, la fiecare mesaj (profilul intră în system prompt) |
-| F6+ | Supabase, legate de contul tău | Idem, plus furnizorul bazei de date |
+| F6+   | Supabase, legate de contul tău   | Idem, plus furnizorul bazei de date                                |
 
 **Consecințele stocării în `localStorage`, asumate conștient în F2:**
 
@@ -234,6 +300,7 @@ Profilul conține date despre tine: stack, skill-uri și nivel, obiectiv profesi
 Acesta e un compromis deliberat pentru a ajunge repede la partea de agent. **Trigger de migrare la F6:** în momentul în care pierderea profilului devine costisitoare — practic, când memoria acumulată depășește ce ai rescrie într-un sfert de oră.
 
 **Reguli permanente:**
+
 - Profilul se poate șterge complet din interfață, în orice fază.
 - Ce se trimite către provider se poate inspecta — la nevoie, agentul poate arăta ce system prompt a folosit.
 - Profilul real nu se comite în git și nu se folosește în exemple din documentație.
@@ -272,13 +339,16 @@ Aplicația spune ce s-a întâmplat, în loc să eșueze mut. Situațiile care s
 
 - Documentația de proiect (acest fișier, `README.md`) și interfața: română.
 - Instrucțiunile pentru agenți (`AGENTS.md` și fișierele generate): engleză.
-- Codul, comentariile și numele de variabile: engleză.
+- Codul, numele de variabile și mesajele de commit: engleză. La fel cheile JSON care trec granița client/server — sunt contract între server și client, nu text afișat.
+- Comentariile din cod: **română**, în fiecare fișier, inclusiv cele de configurare.
+
+Comentariile sunt material didactic, deci au o sarcină precisă: explică **de ce** e scris codul așa — compromisul ales, eroarea pe care o previn, ce s-ar strica fără ele. Un comentariu care repetă ce spune deja linia e zgomot și se șterge. Unde o convenție diferă de ce știe cititorul din altă parte (Vite, Tailwind v3, Pages Router), diferența se spune explicit.
 
 ## 9. Glosar
 
 Termeni folosiți cu același înțeles peste tot în proiect.
 
-**Agent** — componenta care primește o întrebare *împreună cu context* (profil, memorie) și produce un răspuns, iar din F5 poate decide singură să folosească unelte înainte de a răspunde. Se distinge de un simplu apel la model prin faptul că are context și inițiativă.
+**Agent** — componenta care primește o întrebare _împreună cu context_ (profil, memorie) și produce un răspuns, iar din F5 poate decide singură să folosească unelte înainte de a răspunde. Se distinge de un simplu apel la model prin faptul că are context și inițiativă.
 
 **Provider** — furnizorul de model de limbaj (Anthropic, OpenAI). În cod, o implementare a unei interfețe comune, ca să poată fi schimbat fără să se rescrie aplicația.
 
@@ -320,6 +390,8 @@ Acest fișier este sursa de adevăr. Regulile:
 
 ### Jurnal de modificări
 
-| Data | Ce s-a schimbat |
-|---|---|
-| 2026-09-02 | Versiune inițială: scop, persone, faze F0–F7, cerințe non-funcționale, glosar. Decizii fixate: Next.js + TypeScript, agent pe server, `localStorage` în F2 cu migrare la Supabase în F6, Anthropic + OpenAI. |
+| Data       | Ce s-a schimbat                                                                                                                                                                                                                                                                                                                                                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-02 | Versiune inițială: scop, persone, faze F0–F7, cerințe non-funcționale, glosar. Decizii fixate: Next.js + TypeScript, agent pe server, `localStorage` în F2 cu migrare la Supabase în F6, Anthropic + OpenAI.                                                                                                                                                          |
+| 2026-09-02 | F0 încheiată. F1 devine faza curentă și se împarte în F1.1 (schelet, livrat) și F1.2 (chat cu streaming). Adăugate deciziile D-9 (UI din shadcn/ui), D-10 (Prettier cu setări comise), D-11 (blocul `next dev` în `AGENTS.md`). §8.6 modificată: **comentariile din cod se scriu în română** și explică _de ce_, restul codului rămâne în engleză.                    |
+| 2026-09-02 | F1 împărțită în trei pași; **F1.2 (interfața completă pe date inventate) livrată**, F1.3 (chat cu streaming) devine pasul curent. Adăugate deciziile D-12…D-16. Aduse mai devreme, doar ca interfață, formularul de profil (din F2) și selecția de provider (din F4). Deployul pe Vercel se mută din F7 în F1.2, ca versiune de siguranță înainte de orice integrare. |

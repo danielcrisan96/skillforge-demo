@@ -1,0 +1,101 @@
+"use client";
+
+import { Copy, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import type { Message, MessageRole } from "@/lib/types";
+import { useAppStore } from "@/store/useAppStore";
+
+// Un mesaj din conversație.
+//
+// De ce cele două roluri arată diferit și sunt aliniate pe părți opuse: într-un
+// perete de text, cel mai greu lucru e să vezi unde s-a terminat întrebarea ta
+// și unde începe răspunsul. Alinierea rezolvă asta dintr-o privire, fără să fie
+// nevoie să citești.
+
+type RoleConfig = {
+  label: string;
+  /** Alinierea întregului rând. */
+  rowClassName: string;
+  /** Aspectul bulei. */
+  bubbleClassName: string;
+};
+
+/**
+ * Registru pe rol, în loc de `role === "user" ? ... : ...` repetat în cinci
+ * locuri din randare. Când în F5 apare un al treilea rol (rezultatul unei
+ * unelte), se adaugă o intrare aici, nu încă o ramură în fiecare condiție.
+ */
+const ROLE_CONFIG: Record<MessageRole, RoleConfig> = {
+  user: {
+    label: "Tu",
+    rowClassName: "flex-row-reverse",
+    bubbleClassName: "bg-primary text-primary-foreground"
+  },
+  assistant: {
+    label: "SkillForge",
+    rowClassName: "flex-row",
+    bubbleClassName: "bg-muted"
+  }
+};
+
+export function MessageItem({ message }: { message: Message }) {
+  const profileName = useAppStore(state => state.profile.name);
+  const config = ROLE_CONFIG[message.role];
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success("Mesaj copiat");
+    } catch {
+      // `navigator.clipboard` cere context securizat (https sau localhost) și
+      // permisiune. Fără ramura asta, un refuz al browserului ar trece complet
+      // neobservat: utilizatorul ar crede că a copiat și ar lipi altceva.
+      toast.error("Nu am putut copia", { description: "Browserul a refuzat accesul la clipboard." });
+    }
+  };
+
+  const initials = message.role === "user" ? (profileName.trim()[0]?.toUpperCase() ?? "T") : null;
+
+  return (
+    <div className={cn("flex w-full items-start gap-3", config.rowClassName)}>
+      <Avatar className="mt-0.5 size-8 shrink-0">
+        <AvatarFallback className="text-xs">{initials ?? <Sparkles className="size-4" />}</AvatarFallback>
+      </Avatar>
+
+      <div className={cn("flex max-w-[85%] flex-col gap-1", message.role === "user" ? "items-end" : "items-start")}>
+        <span className="px-1 text-xs text-muted-foreground">{config.label}</span>
+
+        {/* `group` ca butonul de copiere să apară la hover peste bulă, nu peste
+            tot rândul — altfel ar clipi când treci mouse-ul prin dreptul ei. */}
+        <div className={cn("group relative rounded-xl px-4 py-3", config.bubbleClassName)}>
+          {/* `whitespace-pre-wrap` păstrează rândurile goale din text. Fără el,
+              tot răspunsul s-ar lipi într-un singur paragraf. */}
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Butonul stă ÎN bulă, nu sub ea: așa nu adaugă un rând de spațiu
+                  între mesaje și e clar la ce text se referă. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={handleCopy}
+                aria-label="Copiază mesajul"
+                className="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+              >
+                <Copy />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copiază</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </div>
+  );
+}

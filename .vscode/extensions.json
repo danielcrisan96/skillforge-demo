@@ -1,0 +1,7 @@
+{
+  // Extensiile pe care VS Code le recomanda la deschiderea proiectului.
+  // `editor.defaultFormatter` din settings.json nu are efect daca extensia
+  // Prettier nu e instalata - atunci formatarea la salvare pur si simplu nu se
+  // intampla, fara nicio eroare vizibila.
+  "recommendations": ["esbenp.prettier-vscode", "bradlc.vscode-tailwindcss"]
+}

@@ -1,6 +1,12 @@
-# Normalize line endings in the repository.
-* text=auto
+# Normalizarea terminatorilor de linie.
+#
+# `text=auto` singur ar stoca LF în repo, dar pe Windows ar face checkout cu CRLF
+# (când `core.autocrlf` e true, cum e implicit acolo). Rezultatul ar fi că
+# `npm run format:check` pică pe Windows și trece în CI — exact genul de diferență
+# care se caută ore întregi. `eol=lf` face checkout-ul LF peste tot, la fel cu
+# `endOfLine: "lf"` din .prettierrc.
+* text=auto eol=lf
 
-# Shell scripts must stay LF even on Windows checkouts: a CRLF shebang line
-# makes the script fail to run under Git Bash.
+# Scripturile shell trebuie să rămână LF chiar și pe Windows: un shebang cu CRLF
+# face scriptul să nu pornească sub Git Bash.
 *.sh text eol=lf

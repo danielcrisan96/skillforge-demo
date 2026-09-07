@@ -31,9 +31,9 @@
 - **Se afișează o singură dată?** <da / nu — dacă da, spune explicit că trebuie copiată atunci>
 - Unde o pui local: `.env.local` (fișier gitignorat)
 
-| Variabilă de mediu | Ce conține | Obligatorie |
-|---|---|---|
-| `NUME_VARIABILA` | <descriere, fără valoare> | da / nu |
+| Variabilă de mediu | Ce conține                | Obligatorie |
+| ------------------ | ------------------------- | ----------- |
+| `NUME_VARIABILA`   | <descriere, fără valoare> | da / nu     |
 
 ## 3. Configurări în dashboard-ul lor
 
