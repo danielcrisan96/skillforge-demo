@@ -1,36 +1,46 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TriangleAlert } from "lucide-react";
+import type { UIMessage } from "ai";
 
 import { MessageItem } from "@/components/chat/message-item";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Message } from "@/lib/types";
+import { chatErrorMessage } from "@/lib/chat-error";
+import { messageText } from "@/lib/message-text";
 
 // Lista de mesaje, plus stările prin care trece până să aibă ce afișa.
 //
-// De ce stările astea se fac ACUM, pe date inventate: încărcarea și „scrie…"
-// sunt exact momentele care apar la integrarea reală, când răspunsul întârzie
-// secunde bune. Construite atunci, s-ar face în grabă, peste un cod care nu le
-// prevedea. Construite acum, sunt deja la locul lor când textul începe să curgă.
+// Stările astea au fost construite în F1.2, pe date inventate, exact ca acum să
+// nu fie nevoie de ele: „scrie…", eroarea și scheletul de încărcare erau deja la
+// locul lor când textul a început să curgă cu adevărat.
 
 type MessageListProps = {
-  messages: Message[];
-  /** Un răspuns e în curs: se afișează indicatorul „scrie…" sub ultimul mesaj. */
-  isResponding: boolean;
+  messages: UIMessage[];
+  /** Cererea a plecat, dar n-a venit încă niciun cuvânt: se arată „scrie…". */
+  isWaiting: boolean;
   /** Starea salvată nu s-a citit încă din `localStorage`. */
   isLoading: boolean;
+  /** Eroare reală de la model sau de la rută. */
+  error?: Error;
 };
 
-export function MessageList({ messages, isResponding, isLoading }: MessageListProps) {
+export function MessageList({ messages, isWaiting, isLoading, error }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Derulare la ultimul mesaj. Fără ea, răspunsul ar apărea sub marginea de jos
-  // și utilizatorul ar crede că nu s-a întâmplat nimic.
+  // Derulare la ultimul mesaj.
+  //
+  // Dependența e LUNGIMEA TEXTULUI ultimului mesaj, nu numărul de mesaje. În
+  // streaming numărul nu se schimbă — un singur mesaj al asistentului crește
+  // literă cu literă — deci un efect legat de `messages.length` ar derula o
+  // dată, la început, iar restul răspunsului ar curge sub marginea de jos.
+  const lastMessageLength = messages.length > 0 ? messageText(messages[messages.length - 1]).length : 0;
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, isResponding]);
+  }, [messages.length, lastMessageLength, isWaiting]);
 
   if (isLoading) {
     // Schelet cu forma reală a conținutului, nu un cerc care se învârte: așa
@@ -54,10 +64,15 @@ export function MessageList({ messages, isResponding, isLoading }: MessageListPr
   return (
     <div className="flex flex-col gap-6">
       {messages.map(message => (
+        // `key` = id-ul mesajului, NICIODATĂ indexul din listă.
+        //
+        // Cu indexul, la regenerarea unui răspuns poziția rămâne aceeași, deci
+        // React crede că e același element și refolosește nodul vechi — pe ecran
+        // rămâne textul anterior, sau se amestecă cele două.
         <MessageItem key={message.id} message={message} />
       ))}
 
-      {isResponding && (
+      {isWaiting && (
         <div className="flex items-start gap-3">
           <Avatar className="mt-0.5 size-8 shrink-0">
             <AvatarFallback>
@@ -75,6 +90,18 @@ export function MessageList({ messages, isResponding, isLoading }: MessageListPr
             <span className="sr-only">SkillForge scrie un răspuns</span>
           </div>
         </div>
+      )}
+
+      {error && (
+        // Componenta de alertă exista deja în aplicație, din F1.2. Textul vine
+        // de la `onError` din rută — tradus acolo în ceva citibil, ca aici să nu
+        // ajungă mesajul brut al SDK-ului. `chatErrorMessage` se ocupă de cazul
+        // în care eroarea a venit ca răspuns 400, nu prin stream.
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Răspunsul nu a putut fi generat</AlertTitle>
+          <AlertDescription>{chatErrorMessage(error)}</AlertDescription>
+        </Alert>
       )}
 
       {/* Ancoră goală pentru derulare. Un element dedicat e mai sigur decât

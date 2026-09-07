@@ -35,19 +35,13 @@ export type ProviderInfo = {
 
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   anthropic: {
-    id: "anthropic",
-    label: "Anthropic",
-    modelId: "claude-opus-5",
-    modelLabel: "Claude Opus 5",
-    implemented: true
-  },
-  "anthropic-haiku": {
     id: "anthropic-haiku",
     label: "Anthropic",
-    modelId: "claude-haiku-4-5-20251001",
+    modelId: "claude-haiku-4-5",
     modelLabel: "Claude Haiku 4.5",
     implemented: true
   },
+
   openai: {
     id: "openai",
     label: "OpenAI",
@@ -68,6 +62,6 @@ export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[];
  * validare pe server, altfel clientul ar putea cere orice model. Se face în F4,
  * o dată cu al doilea provider real.
  */
-export const DEFAULT_PROVIDER_ID: ProviderId = "anthropic-haiku";
+export const DEFAULT_PROVIDER_ID: ProviderId = "anthropic";
 
 export const DEFAULT_MODEL_ID = PROVIDERS[DEFAULT_PROVIDER_ID].modelId;

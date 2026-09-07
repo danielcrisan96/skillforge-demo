@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
-import { MOCK_CONVERSATIONS, MOCK_ASSISTANT_REPLY, NEW_CONVERSATION_TITLE } from "@/lib/mock/conversations";
+import { MOCK_CONVERSATIONS, NEW_CONVERSATION_TITLE } from "@/lib/mock/conversations";
 import { MOCK_PROFILE } from "@/lib/mock/profile";
-import type { Conversation, Message, Profile, ProviderId, ThemePreference } from "@/lib/types";
+import type { Conversation, Profile, ProviderId, ThemePreference } from "@/lib/types";
 
 // Starea aplicației, într-un singur store.
 //
@@ -19,22 +19,24 @@ import type { Conversation, Message, Profile, ProviderId, ThemePreference } from
 // ce înseamnă asta pentru datele personale.
 
 /**
- * Referința către „răspunsul în curs”. Stă în afara store-ului pentru că un
- * handle de `setTimeout` nu e serializabil: dacă ar intra în starea persistată,
- * `JSON.stringify` l-ar transforma într-un număr fără sens, iar după refresh
- * butonul de stop ar încerca să oprească un timer inexistent.
+ * CINE DEȚINE CE, de la F1.4 încoace (vezi D-19 din requirements).
+ *
+ * Store-ul ține LISTA de conversații: id, titlu, care e selectată. Atât.
+ * Mesajele conversației deschise aparțin lui `useChat` și trăiesc în
+ * `chat.tsx`.
+ *
+ * Ce era aici înainte și a dispărut: `sendMessage`, textul de răspuns simulat și
+ * `setTimeout`-ul care îl întârzia. Nu au fost mutate, ci ȘTERSE — acum
+ * răspunsul vine de la model, prin `/api/chat`, iar erorile sunt reale.
+ *
+ * De ce nu ținem și noi o copie a mesajelor, „pentru siguranță": pentru că nu
+ * există așa ceva. În timpul streamului, hook-ul primește zeci de actualizări pe
+ * secundă; orice al doilea deținător ar rămâne în urmă la prima bucată pierdută,
+ * și nimic n-ar semnala asta. Un singur deținător, ales explicit.
  */
-let pendingReplyTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Întârzierea răspunsului simulat. Destul cât indicatorul „scrie…” să fie vizibil. */
-const MOCK_REPLY_DELAY_MS = 1400;
 
 function createId(): string {
   return crypto.randomUUID();
-}
-
-function createMessage(role: Message["role"], content: string): Message {
-  return { id: createId(), role, content, createdAt: new Date().toISOString() };
 }
 
 type AppState = {
@@ -55,8 +57,20 @@ type AppState = {
    */
   hasHydrated: boolean;
 
-  /** Există un răspuns în curs. Comută butonul din `Send` în `Square` (stop). */
-  isResponding: boolean;
+  /**
+   * Id-ul pregătit pentru conversația care încă nu există.
+   *
+   * Ecranul „conversație nouă" are nevoie de un id STABIL înainte să existe
+   * vreun mesaj, pentru un motiv foarte concret: componenta de chat e remontată
+   * (prin `key`) când se schimbă conversația, ca `useChat` să pornească de la
+   * zero. Dacă id-ul ar apărea abia la primul mesaj, `key` s-ar schimba fix în
+   * clipa trimiterii — React ar arunca componenta, iar stream-ul tocmai pornit
+   * ar fi pierdut. Cu id-ul pregătit dinainte, trecerea „conversație nouă" ->
+   * „conversație salvată" nu mai remontează nimic.
+   *
+   * Nu se persistă: e o intenție a momentului, nu o dată a utilizatorului.
+   */
+  draftConversationId: string;
 
   /**
    * Fereastra de preferințe e deschisă.
@@ -80,8 +94,13 @@ type AppState = {
   renameConversation: (id: string, title: string) => void;
   deleteConversation: (id: string) => void;
 
-  sendMessage: (content: string) => void;
-  stopResponding: () => void;
+  /**
+   * Adaugă în listă conversația începută pe ecranul gol și o face activă.
+   *
+   * Se cheamă la PRIMUL mesaj, nu la apăsarea butonului „New": altfel, cinci
+   * clicuri ar lăsa cinci conversații goale în sidebar.
+   */
+  materializeConversation: (title: string) => void;
 };
 
 export const useAppStore = create<AppState>()(
@@ -95,7 +114,7 @@ export const useAppStore = create<AppState>()(
       // Sunt două lucruri diferite; al doilea e `hasHydrated`.
       activeConversationId: null,
       hasHydrated: false,
-      isResponding: false,
+      draftConversationId: createId(),
       isSettingsOpen: false,
 
       setHasHydrated: value => set({ hasHydrated: value }),
@@ -107,8 +126,12 @@ export const useAppStore = create<AppState>()(
       createConversation: () => {
         // Nu creăm încă un obiect de conversație: dacă utilizatorul apasă „New”
         // de cinci ori, ar rămâne cinci conversații goale în listă. Conversația
-        // se naște abia la primul mesaj trimis (vezi `sendMessage`).
-        set({ activeConversationId: null });
+        // se naște abia la primul mesaj (vezi `materializeConversation`).
+        //
+        // Id-ul nou pentru schița următoare se generează ACUM, ca remontarea
+        // componentei de chat (care se face pe `key`) să golească ecranul de
+        // mesajele conversației precedente.
+        set({ activeConversationId: null, draftConversationId: createId() });
       },
 
       selectConversation: id => set({ activeConversationId: id }),
@@ -133,63 +156,27 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      sendMessage: content => {
-        const trimmed = content.trim();
-        if (!trimmed || get().isResponding) return;
+      materializeConversation: title => {
+        const trimmed = title.trim();
+        const id = get().draftConversationId;
 
-        const userMessage = createMessage("user", trimmed);
-        const activeId = get().activeConversationId;
-
-        if (activeId === null) {
-          // Primul mesaj dintr-o conversație nouă: abia acum o materializăm.
-          const conversation: Conversation = {
-            id: createId(),
-            // În F3 titlul se va genera din primul mesaj. Până atunci, primele
-            // cuvinte sunt mai utile decât un titlu fix, pentru că lista de
-            // conversații trebuie să fie citibilă.
-            title: trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed || NEW_CONVERSATION_TITLE,
-            createdAt: new Date().toISOString(),
-            messages: [userMessage]
-          };
-          set(state => ({
-            conversations: [conversation, ...state.conversations],
-            activeConversationId: conversation.id,
-            isResponding: true
-          }));
-        } else {
-          set(state => ({
-            conversations: state.conversations.map(c =>
-              c.id === activeId ? { ...c, messages: [...c.messages, userMessage] } : c
-            ),
-            isResponding: true
-          }));
-        }
-
-        // AICI SE VA LEGA MODELUL, la pasul următor.
-        //
-        // Tot ce urmează — întârzierea și textul fix — se înlocuiește cu apelul
-        // către `/api/chat` și cu citirea stream-ului. Restul aplicației nu știe
-        // de unde vine textul, deci nu se schimbă nimic altundeva.
-        pendingReplyTimer = setTimeout(() => {
-          const conversationId = get().activeConversationId;
-          if (conversationId === null) return;
-          const reply = createMessage("assistant", MOCK_ASSISTANT_REPLY);
-          set(state => ({
-            conversations: state.conversations.map(c =>
-              c.id === conversationId ? { ...c, messages: [...c.messages, reply] } : c
-            ),
-            isResponding: false
-          }));
-          pendingReplyTimer = null;
-        }, MOCK_REPLY_DELAY_MS);
-      },
-
-      stopResponding: () => {
-        if (pendingReplyTimer !== null) {
-          clearTimeout(pendingReplyTimer);
-          pendingReplyTimer = null;
-        }
-        set({ isResponding: false });
+        set(state => ({
+          conversations: [
+            {
+              id,
+              // În F3 titlul se va genera din primul mesaj, cu un model. Până
+              // atunci, primele cuvinte sunt mai utile decât un titlu fix:
+              // lista de conversații trebuie să fie citibilă dintr-o privire.
+              title: trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed || NEW_CONVERSATION_TITLE,
+              createdAt: new Date().toISOString()
+            },
+            ...state.conversations
+          ],
+          // Conversația devine activă, dar `draftConversationId` rămâne același:
+          // e chiar id-ul pe care tocmai l-am folosit, deci `key`-ul componentei
+          // de chat nu se schimbă și stream-ul în curs nu e întrerupt.
+          activeConversationId: id
+        }));
       }
     }),
     {
@@ -197,10 +184,10 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
 
       /**
-       * Ce se salvează. `hasHydrated`, `isResponding` și `isSettingsOpen` descriu
-       * momentul curent, nu datele utilizatorului: salvate, aplicația s-ar
-       * redeschide crezând că un răspuns e încă în curs, cu butonul blocat pe
-       * „stop”, și cu fereastra de preferințe deschisă peste conversație.
+       * Ce se salvează. `hasHydrated`, `draftConversationId` și `isSettingsOpen`
+       * descriu momentul curent, nu datele utilizatorului: salvate, aplicația
+       * s-ar redeschide cu fereastra de preferințe deschisă peste conversație și
+       * cu un id de schiță rămas de la sesiunea trecută.
        */
       partialize: state => ({
         profile: state.profile,
@@ -211,12 +198,31 @@ export const useAppStore = create<AppState>()(
       }),
 
       /**
-       * `version` contează de pe acum: forma datelor se va schimba (F2 adaugă
-       * câmpuri în profil, F3 în conversații). Fără versiune, o structură veche
-       * rămasă în `localStorage` ar fi citită ca și cum ar fi nouă, iar
-       * aplicația ar pica pe un câmp lipsă la prima deschidere după update.
+       * Versiunea 2: conversațiile nu mai au `messages`.
+       *
+       * Exact cazul pentru care `version` exista de la început. Oricine a
+       * deschis aplicația înainte de F1.4 are în `localStorage` conversații CU
+       * mesaje, în forma veche (`content: string`). Fără migrare, transcrierile
+       * alea ar rămâne acolo pentru totdeauna — invizibile, pentru că nimic nu
+       * le mai citește, dar ocupând spațiu și pretinzând că sunt starea curentă.
        */
-      version: 1,
+      version: 2,
+
+      migrate: persisted => {
+        const state = persisted as { conversations?: unknown[] } | undefined;
+        if (!state?.conversations) return state;
+
+        return {
+          ...state,
+          // `messages` se aruncă: de acum transcrierea aparține lui `useChat`.
+          // Titlurile și ordinea rămân, deci sidebar-ul arată la fel după update.
+          conversations: state.conversations.map(conversation => {
+            const meta = { ...(conversation as Record<string, unknown>) };
+            delete meta.messages;
+            return meta;
+          })
+        };
+      },
 
       onRehydrateStorage: () => state => {
         state?.setHasHydrated(true);

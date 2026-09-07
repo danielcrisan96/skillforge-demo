@@ -46,52 +46,33 @@ export type Profile = {
   goal: string;
 };
 
-export type MessageRole = "user" | "assistant";
-
-export type Message = {
-  id: string;
-  role: MessageRole;
-  content: string;
-  /**
-   * ISO string, nu `Date`. Motivul e concret: starea se salvează în
-   * `localStorage` prin `JSON.stringify`, iar un `Date` ar reveni de acolo ca
-   * text — deci tipul ar minți după primul refresh. Păstrăm forma serializabilă
-   * peste tot și formatăm doar la afișare.
-   */
-  createdAt: string;
-};
-
+/**
+ * O conversație, așa cum apare în lista din stânga.
+ *
+ * Observă ce NU e aici: mesajele. Începând cu F1.4, transcrierea conversației
+ * deschise aparține lui `useChat` (vezi D-19). Store-ul ține lista — ce
+ * conversații există, cum se numesc, care e selectată — și atât.
+ *
+ * Motivul e o lecție plătită scump în multe aplicații: două locuri care țin
+ * aceleași mesaje se desincronizează garantat. Unul primește bucata de stream,
+ * celălalt nu; unul știe de mesajul în curs, celălalt are versiunea de acum
+ * două secunde. Alegerea trebuie să fie explicită, nu întâmplătoare.
+ */
 export type Conversation = {
   id: string;
   title: string;
   createdAt: string;
-  messages: Message[];
 };
 
 /**
  * Providerii de model. Sunt un tip închis pentru că D-4 spune că providerul se
  * schimbă, iar un `string` ar permite o valoare care nu are implementare.
- * În pasul acesta selecția e doar vizuală — nu se cheamă nimic.
+ *
+ * Tipul stă aici; REGISTRUL (etichete, id-uri de model) s-a mutat în
+ * `src/lib/providers.ts`, fiindcă de la F1.4 conține id-ul trimis către API —
+ * o valoare de configurare, nu o formă de date.
  */
-export type ProviderId = "anthropic" | "openai";
-
-export type ProviderInfo = {
-  id: ProviderId;
-  label: string;
-  /** Numele modelului, afișat lângă provider ca utilizatorul să știe ce ar răspunde. */
-  model: string;
-};
-
-/**
- * Registru, nu lanț de `if`. Adăugarea unui provider înseamnă o intrare aici,
- * nu o ramură nouă în fiecare loc care afișează sau validează providerul.
- */
-export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
-  anthropic: { id: "anthropic", label: "Anthropic", model: "Claude Sonnet 4.5" },
-  openai: { id: "openai", label: "OpenAI", model: "GPT-5" }
-};
-
-export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[];
+export type ProviderId = "anthropic" | "anthropic-haiku" | "openai";
 
 /**
  * Preferința de temă a utilizatorului — ce a ales el, nu ce se vede pe ecran.

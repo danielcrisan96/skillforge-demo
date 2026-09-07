@@ -42,25 +42,28 @@ npm run dev                   # http://localhost:3000
 
 ### Ce există acum
 
-Faza curentă e **F1** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă) și **F1.3 (streaming de la server)** sunt livrați.
+Faza curentă e **F1** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă), F1.3 (streaming de la server) și **F1.4 (chat cu model real)** sunt livrați.
 
-**Aplicația funcționează integral pe date inventate. Nu există niciun apel către un model de limbaj și nicio cheie de API** — pornește pe orice laptop, fără configurare.
+Conversația răspunde acum cu **Claude, în streaming**. Pentru asta e nevoie de o cheie de API — vezi [`docs/anthropic/README.md`](docs/anthropic/README.md).
+
+**Fără cheie aplicația tot pornește** (`npm run build` trece pe orice laptop): restul — conversațiile, profilul, tema, secțiunea „Despre aplicație" — merge pe date inventate, iar chatul spune limpede ce variabilă lipsește, în loc să dea o eroare de server.
 
 Ce poți face:
 
-- creezi, deschizi, redenumești și ștergi conversații (supraviețuiesc unui refresh)
-- trimiți un mesaj și primești un răspuns simulat, cu indicator „scrie…" și buton de stop
+- creezi, deschizi, redenumești și ștergi conversații (lista supraviețuiește unui refresh; **mesajele dintr-o conversație încă nu** — persistarea istoricului e F3)
+- trimiți un mesaj și primești un **răspuns real de la Claude, în streaming**, cu indicator „scrie…" și buton de Stop care chiar oprește generarea
 - îți editezi profilul (nume, stack, skills, obiectiv) din preferințe
 - schimbi tema — sistem, luminoasă sau întunecată, doar din preferințe
 - folosești aplicația pe telefon: sidebar-ul intră într-un panou glisant
 - deschizi preferințele → **„Despre aplicație”** și vezi un text venind de pe server bucată cu bucată, prin SSE — fără niciun model de limbaj în spate
 
-| Rută         | Ce arată                                                                                                         |
-| ------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `/`          | Aplicația: sidebar, bară de sus, conversație                                                                     |
-| `/demo`      | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                                   |
-| `/api/hello` | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul                |
-| `/api/about` | Trimite descrierea aplicației **în streaming** (SSE). Repetiția protocolului pe care va veni răspunsul modelului |
+| Rută         | Ce arată                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `/`          | Aplicația: sidebar, bară de sus, conversație                                                                        |
+| `/demo`      | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                                      |
+| `/api/hello` | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul                   |
+| `/api/about` | Trimite descrierea aplicației **în streaming** (SSE). Repetiția protocolului pe care va veni răspunsul modelului    |
+| `/api/chat`  | Conversația: cheamă Claude prin AI SDK-ul Vercel și întoarce răspunsul în streaming. Singurul loc care atinge cheia |
 
 Unde se schimbă datele inventate cu date reale: [`src/lib/mock/`](src/lib/mock/) și acțiunea `sendMessage` din [`src/store/useAppStore.ts`](src/store/useAppStore.ts). În rest, nimic nu știe de unde vine textul.
 

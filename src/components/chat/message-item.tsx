@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { Message, MessageRole } from "@/lib/types";
+import { messageText } from "@/lib/message-text";
 import { useAppStore } from "@/store/useAppStore";
+import type { UIMessage } from "ai";
 
 // Un mesaj din conversație.
 //
@@ -29,8 +30,13 @@ type RoleConfig = {
  * Registru pe rol, în loc de `role === "user" ? ... : ...` repetat în cinci
  * locuri din randare. Când în F5 apare un al treilea rol (rezultatul unei
  * unelte), se adaugă o intrare aici, nu încă o ramură în fiecare condiție.
+ *
+ * Cheia e `UIMessage["role"]`, deci include și „system". Rolul ăsta nu e produs
+ * de interfața noastră (promptul de sistem se construiește pe server, din F2),
+ * dar tipul îl permite — iar `Record` ne obligă să spunem cum arată, în loc să
+ * pice randarea pe un `undefined` dacă apare vreodată.
  */
-const ROLE_CONFIG: Record<MessageRole, RoleConfig> = {
+const ROLE_CONFIG: Record<UIMessage["role"], RoleConfig> = {
   user: {
     label: "Tu",
     rowClassName: "flex-row-reverse",
@@ -40,16 +46,25 @@ const ROLE_CONFIG: Record<MessageRole, RoleConfig> = {
     label: "SkillForge",
     rowClassName: "flex-row",
     bubbleClassName: "bg-muted"
+  },
+  system: {
+    label: "Sistem",
+    rowClassName: "flex-row",
+    bubbleClassName: "bg-muted"
   }
 };
 
-export function MessageItem({ message }: { message: Message }) {
+export function MessageItem({ message }: { message: UIMessage }) {
   const profileName = useAppStore(state => state.profile.name);
   const config = ROLE_CONFIG[message.role];
 
+  // Textul se compune din `parts` — vezi `messageText` pentru de ce
+  // `message.content` nu există și ce se întâmplă dacă îl scrii totuși.
+  const text = messageText(message);
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(text);
       toast.success("Mesaj copiat");
     } catch {
       // `navigator.clipboard` cere context securizat (https sau localhost) și
@@ -75,7 +90,7 @@ export function MessageItem({ message }: { message: Message }) {
         <div className={cn("group relative rounded-xl px-4 py-3", config.bubbleClassName)}>
           {/* `whitespace-pre-wrap` păstrează rândurile goale din text. Fără el,
               tot răspunsul s-ar lipi într-un singur paragraf. */}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
 
           <Tooltip>
             <TooltipTrigger asChild>

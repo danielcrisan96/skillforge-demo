@@ -5,7 +5,7 @@ import { Check, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { PROVIDERS, PROVIDER_IDS } from "@/lib/types";
+import { PROVIDERS, PROVIDER_IDS } from "@/lib/providers";
 import { useAppStore } from "@/store/useAppStore";
 
 // Alegerea providerului de model.
@@ -54,7 +54,7 @@ export function ProvidersForm() {
             >
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">{provider.label}</span>
-                <span className="font-mono text-xs text-muted-foreground">{provider.model}</span>
+                <span className="font-mono text-xs text-muted-foreground">{provider.modelLabel}</span>
               </div>
 
               {isSelected ? (

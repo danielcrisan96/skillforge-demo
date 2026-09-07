@@ -6,7 +6,7 @@ import { Plus, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PROVIDERS } from "@/lib/types";
+import { PROVIDERS } from "@/lib/providers";
 import { useAppStore } from "@/store/useAppStore";
 
 // Composer-ul: cutia din care pleacă mesajele.
@@ -23,12 +23,20 @@ type ChatInputProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  /**
+   * Modelul lucrează: cererea a plecat sau răspunsul curge.
+   *
+   * Vine ca prop, derivat din `status`-ul lui `useChat`, în loc să fie citit din
+   * store. Store-ul nu mai știe nimic despre răspunsul în curs — și e bine așa:
+   * ar fi fost a doua sursă de adevăr pentru ceva ce hook-ul știe deja exact.
+   */
+  isBusy: boolean;
+  /** Oprește generarea. E chiar `stop` de la `useChat`. */
+  onStop: () => void;
 };
 
-export function ChatInput({ value, onChange, onSubmit }: ChatInputProps) {
+export function ChatInput({ value, onChange, onSubmit, isBusy, onStop }: ChatInputProps) {
   const providerId = useAppStore(state => state.providerId);
-  const isResponding = useAppStore(state => state.isResponding);
-  const stopResponding = useAppStore(state => state.stopResponding);
 
   const provider = PROVIDERS[providerId];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -44,7 +52,17 @@ export function ChatInput({ value, onChange, onSubmit }: ChatInputProps) {
     element.style.height = `${Math.min(element.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
   }, [value]);
 
-  const canSend = value.trim().length > 0 && !isResponding;
+  // Focus înapoi în casetă după trimitere.
+  //
+  // Fără asta, după Enter focusul rămâne pe textarea doar din întâmplare, iar
+  // după un click pe butonul de trimitere ajunge pe buton — deci al doilea mesaj
+  // s-ar scrie nicăieri. Se face la ieșirea din starea „ocupat", adică fix când
+  // utilizatorul poate scrie din nou.
+  useEffect(() => {
+    if (!isBusy) textareaRef.current?.focus();
+  }, [isBusy]);
+
+  const canSend = value.trim().length > 0 && !isBusy;
 
   return (
     <div className="rounded-xl border bg-background transition-colors focus-within:border-ring">
@@ -88,17 +106,13 @@ export function ChatInput({ value, onChange, onSubmit }: ChatInputProps) {
           {/* Providerul e afișat permanent, ca să nu existe dubiu despre cine ar
               răspunde. Se schimbă din preferințe. */}
           <span className="hidden text-xs text-muted-foreground sm:inline">
-            {provider.label} · <span className="font-mono">{provider.model}</span>
+            {provider.label} · <span className="font-mono">{provider.modelLabel}</span>
           </span>
 
-          {isResponding ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="secondary"
-              onClick={stopResponding}
-              aria-label="Oprește răspunsul"
-            >
+          {/* Un singur buton care își schimbă rolul, nu două alăturate: cât
+              timp modelul scrie, singura acțiune care are sens e oprirea. */}
+          {isBusy ? (
+            <Button type="button" size="icon" variant="secondary" onClick={onStop} aria-label="Oprește răspunsul">
               <Square />
             </Button>
           ) : (

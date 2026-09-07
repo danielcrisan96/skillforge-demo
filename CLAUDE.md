@@ -32,7 +32,9 @@ The reason this rule exists: the agent writes the code, but the manual steps are
 
 ## Secrets
 
-- The LLM is called **only from server-side code**. An API key must never reach the browser.
+- The LLM is called **only from server-side code**, and `src/app/api/chat/route.ts` is the only place that talks to a provider. **Never call a model from a client component**, and never proxy the key through a route that returns it. An API key must never reach the browser — not in client code, not in a URL, not in an API response, not in a log.
+- Read the key **inside the handler** (`process.env.ANTHROPIC_API_KEY`), never at module level: a `throw` at import time breaks `next build` on any machine without `.env.local`. A missing key is a `400` response with a clear message, not a `500`.
+- Translate provider errors into readable text in `onError` before they reach the UI. The SDK's raw message can carry account details; it stays in the server log.
 - Keys live in `.env.local`, which is gitignored. Never commit a key; never paste one into a doc, a comment, or a test.
 - Do not put a secret in a client-exposed environment variable.
 - At deploy time the same variables are configured in the platform, never hardcoded.
@@ -48,6 +50,12 @@ The reason this rule exists: the agent writes the code, but the manual steps are
 - Import through the `@/` alias, one component per file, and prefer a **registry** (a record or array of entries) over chains of `if`/`switch` when behaviour varies by a key — roles, providers, settings sections, theme options.
 - **Invented/mock data lives only in `src/lib/mock/`** (D-14). Never inline placeholder content in a component: replacing mock with real data must stay a one-place change.
 - Application state lives in `src/store/useAppStore.ts` (Zustand + `persist`, key `skillforge-app`). Transient UI state is excluded from what gets persisted.
+- **Who owns the messages (D-19).** There are now two places that could hold a conversation, so the split is written down rather than left to chance:
+  - the **open conversation's messages belong to `useChat`**, in `src/components/chat/chat.tsx`. Do not copy them into the store, and do not add a store action that appends or edits a message.
+  - the **store owns the conversation list** — id, title, which one is selected — and nothing else.
+  - Derive UI state (`is the model writing`, `show Stop`, `show the error`) from the hook's `status` and `error`. Never keep a parallel `useState` for it.
+  - A message has **`parts`**, not a `content` string. Compose text with `messageText()` from `src/lib/message-text.ts`; `message.content` is `undefined` and fails silently.
+  - The list `key` is the message **id**, never the array index.
 
 ## How to work on this project
 
