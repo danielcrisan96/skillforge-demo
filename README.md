@@ -46,7 +46,7 @@ npm run dev                   # http://localhost:3000
 
 **F2.5** (vezi [`docs/requirements.md`](docs/requirements.md)): aplicația e publicată pe Vercel, cu cheia de Anthropic configurată în platformă — nu pe laptop. Pașii manuali sunt în [`docs/vercel/README.md`](docs/vercel/README.md).
 
-> Link-ul public: _de completat aici, imediat după importul din GitHub în Vercel și configurarea variabilelor (vezi `docs/vercel/README.md`)._
+**Link public:** https://skillforge-demo-nu.vercel.app/
 
 ### Ce există acum
 
