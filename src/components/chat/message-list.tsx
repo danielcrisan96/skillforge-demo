@@ -25,9 +25,13 @@ type MessageListProps = {
   isLoading: boolean;
   /** Eroare reală de la model sau de la rută. */
   error?: Error;
+  /** Cererea curentă e „submitted" sau „streaming" — dezactivează reluarea. */
+  isBusy?: boolean;
+  /** Reia răspunsul asistentului cu id-ul dat. Absent pe ecranele fără chat activ. */
+  onRetry?: (messageId: string) => void;
 };
 
-export function MessageList({ messages, isWaiting, isLoading, error }: MessageListProps) {
+export function MessageList({ messages, isWaiting, isLoading, error, isBusy = false, onRetry }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Derulare la ultimul mesaj.
@@ -63,13 +67,23 @@ export function MessageList({ messages, isWaiting, isLoading, error }: MessageLi
 
   return (
     <div className="flex flex-col gap-6">
-      {messages.map(message => (
+      {messages.map((message, index) => (
         // `key` = id-ul mesajului, NICIODATĂ indexul din listă.
         //
         // Cu indexul, la regenerarea unui răspuns poziția rămâne aceeași, deci
         // React crede că e același element și refolosește nodul vechi — pe ecran
         // rămâne textul anterior, sau se amestecă cele două.
-        <MessageItem key={message.id} message={message} />
+        <MessageItem
+          key={message.id}
+          message={message}
+          isBusy={isBusy}
+          onRetry={onRetry}
+          // Câte mesaje s-ar pierde reluând ACEST răspuns: tot ce vine după
+          // el. Pe ultimul e 0 — reluarea înlocuiește doar răspunsul curent,
+          // fără confirmare. Pe unul mai vechi, reluarea taie și tot ce a
+          // urmat, deci MessageItem cere confirmare.
+          discardCount={messages.length - 1 - index}
+        />
       ))}
 
       {isWaiting && (

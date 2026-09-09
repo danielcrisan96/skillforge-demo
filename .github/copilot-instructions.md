@@ -58,6 +58,9 @@ The reason this rule exists: the agent writes the code, but the manual steps are
   - Derive UI state (`is the model writing`, `show Stop`, `show the error`) from the hook's `status` and `error`. Never keep a parallel `useState` for it.
   - A message has **`parts`**, not a `content` string. Compose text with `messageText()` from `src/lib/message-text.ts`; `message.content` is `undefined` and fails silently.
   - The list `key` is the message **id**, never the array index.
+  - **Transformations over the message list — anything that turns `UIMessage[]` (plus the profile) into a string, a summary, an export — live in `src/lib/message-utils.ts` as pure functions**: they take messages and return a value, nothing else. No `document`, no store, no `fetch` in that file — that's what makes them testable without a browser. Extracting text from one message still has exactly one place, `messageText()`; a serializer that re-reads `message.parts` itself has drifted from it.
+  - A component that isn't `chat.tsx` (the header, say) needing the open conversation's messages does **not** get a store field for it — that would put messages back in the store, the exact thing D-19 rules out. Route it through a narrow, pull-based bridge instead (see `src/lib/active-conversation-bridge.ts`): written on every message change, read once, on demand — never subscribed to reactively, so it can't be a second render-driving copy.
+  - **No action bar above the conversation.** This is a product rule, not a style preference: conversation-level actions (retry, copy, export) live on the message itself (hover) or in the header — never as a strip of buttons floating over the message list.
 
 ## Skills
 

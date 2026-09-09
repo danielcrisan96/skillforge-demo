@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 
 import { ChatInput } from "@/components/chat/chat-input";
 import { EmptyState } from "@/components/chat/empty-state";
 import { MessageList } from "@/components/chat/message-list";
+import { setActiveMessages } from "@/lib/active-conversation-bridge";
 import { MOCK_MESSAGES } from "@/lib/mock/conversations";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/store/useAppStore";
@@ -79,7 +80,7 @@ function Conversation({ conversationId }: { conversationId: string }) {
       })
   );
 
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, regenerate, status, error, stop } = useChat({
     transport,
 
     // Mesajele de pornire. Conversațiile inventate au un seed (ca aplicația să
@@ -87,6 +88,16 @@ function Conversation({ conversationId }: { conversationId: string }) {
     // utilizator pornesc de la zero.
     messages: MOCK_MESSAGES[conversationId] ?? []
   });
+
+  // Publică instantaneul curent de mesaje pentru header (vezi
+  // `active-conversation-bridge.ts`) — singurul mod în care exportul, aflat
+  // într-un component frate, ajunge la mesajele deținute aici de `useChat`.
+  // La demontare (schimbare de conversație) golim, ca un export apăsat exact
+  // în tranziție să nu ofere mesajele conversației părăsite.
+  useEffect(() => {
+    setActiveMessages(messages);
+    return () => setActiveMessages([]);
+  }, [messages]);
 
   // Stările se DERIVĂ din `status`, nu se țin în paralel.
   //
@@ -131,7 +142,14 @@ function Conversation({ conversationId }: { conversationId: string }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-          <MessageList messages={messages} isWaiting={isWaiting} isLoading={false} error={error} />
+          <MessageList
+            messages={messages}
+            isWaiting={isWaiting}
+            isLoading={false}
+            error={error}
+            isBusy={isBusy}
+            onRetry={messageId => regenerate({ messageId })}
+          />
         </div>
       </ScrollArea>
 
