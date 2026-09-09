@@ -59,6 +59,20 @@ The reason this rule exists: the agent writes the code, but the manual steps are
   - A message has **`parts`**, not a `content` string. Compose text with `messageText()` from `src/lib/message-text.ts`; `message.content` is `undefined` and fails silently.
   - The list `key` is the message **id**, never the array index.
 
+## Skills
+
+A workflow that repeats at every module — a checklist to run, a recurring set of steps — is worth writing down once as a **skill**, not re-derived or re-explained from scratch each time.
+
+- **`.claude/skills/` is the source.** Each skill is a folder with a `SKILL.md` (frontmatter `name`, matching the folder name, plus `description`).
+- **`.github/skills/` is its mirror**, byte-identical, so Claude Code and GitHub Copilot read the same instructions from the format each of them expects.
+- Never hand-edit the `.github/skills/` copy. Edit the `.claude/skills/` version, then run:
+
+  ```sh
+  sh scripts/sync-skills.sh
+  ```
+
+  `sh scripts/sync-skills.sh --check` verifies the mirror matches without writing, for use as a pre-commit hook or a CI step.
+
 ## How to work on this project
 
 This is a course project. The user is learning, and pace matters more than throughput.
@@ -68,6 +82,7 @@ This is a course project. The user is learning, and pace matters more than throu
 - Do not write code outside the scope of the current module.
 - Do not scaffold "just in case" abstractions. The phases in `docs/requirements.md` say what comes next; build for the current one.
 - Check the current phase in `docs/requirements.md` before starting. If the request seems to belong to a later phase, say so before writing code.
+- **Definition of done, before publishing:** run the `pre-deploy` skill.
 
 ## Language
 

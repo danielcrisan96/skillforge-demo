@@ -29,20 +29,28 @@ npm run dev                   # http://localhost:3000
 
 ### Comenzi
 
-| Comandă                          | Ce face                                                                      |
-| -------------------------------- | ---------------------------------------------------------------------------- |
-| `npm run dev`                    | Pornește serverul de dezvoltare                                              |
-| `npm run build`                  | Build de producție                                                           |
-| `npm run start`                  | Rulează build-ul de producție                                                |
-| `npm run lint`                   | ESLint (în Next 16 nu mai rulează automat la build)                          |
-| `npm run format`                 | Formatează tot cu Prettier                                                   |
-| `npm run format:check`           | Verifică formatarea fără s-o modifice — de folosit în CI                     |
-| `sh scripts/sync-agent-docs.sh`  | Regenerează `CLAUDE.md` și `.github/copilot-instructions.md` din `AGENTS.md` |
-| `sh scripts/check-agent-docs.sh` | Verifică dacă sunt sincronizate (util ca pre-commit sau în CI)               |
+| Comandă                             | Ce face                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------- |
+| `npm run dev`                       | Pornește serverul de dezvoltare                                              |
+| `npm run build`                     | Build de producție                                                           |
+| `npm run start`                     | Rulează build-ul de producție                                                |
+| `npm run lint`                      | ESLint (în Next 16 nu mai rulează automat la build)                          |
+| `npm run format`                    | Formatează tot cu Prettier                                                   |
+| `npm run format:check`              | Verifică formatarea fără s-o modifice — de folosit în CI                     |
+| `sh scripts/sync-agent-docs.sh`     | Regenerează `CLAUDE.md` și `.github/copilot-instructions.md` din `AGENTS.md` |
+| `sh scripts/check-agent-docs.sh`    | Verifică dacă sunt sincronizate (util ca pre-commit sau în CI)               |
+| `sh scripts/sync-skills.sh`         | Copiază skill-urile din `.claude/skills/` în oglinda `.github/skills/`       |
+| `sh scripts/sync-skills.sh --check` | Verifică dacă oglinda e la zi, fără s-o scrie (util ca pre-commit sau în CI) |
+
+### Aplicația publicată
+
+**F2.5** (vezi [`docs/requirements.md`](docs/requirements.md)): aplicația e publicată pe Vercel, cu cheia de Anthropic configurată în platformă — nu pe laptop. Pașii manuali sunt în [`docs/vercel/README.md`](docs/vercel/README.md).
+
+> Link-ul public: _de completat aici, imediat după importul din GitHub în Vercel și configurarea variabilelor (vezi `docs/vercel/README.md`)._
 
 ### Ce există acum
 
-Faza curentă e **F1** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă), F1.3 (streaming de la server) și **F1.4 (chat cu model real)** sunt livrați.
+Faza curentă e **F2.5** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă), F1.3 (streaming de la server), F1.4 (chat cu model real) și F2 (profil și system prompt personalizat) sunt livrați.
 
 Conversația răspunde acum cu **Claude, în streaming**. Pentru asta e nevoie de o cheie de API — vezi [`docs/anthropic/README.md`](docs/anthropic/README.md).
 

@@ -3,7 +3,7 @@
 > **Acest fișier este sursa de adevăr pentru ce construim.**
 > Orice decizie luată pe parcurs se scrie aici, nu doar în conversație. Vezi [Cum se modifică acest document](#11-cum-se-modifică-acest-document).
 
-Ultima actualizare: 2026-09-07
+Ultima actualizare: 2026-09-09
 
 ---
 
@@ -116,7 +116,7 @@ Livrează:
 
 ---
 
-### F1 — Schelet și chat cu streaming ← _faza curentă_
+### F1 — Schelet și chat cu streaming ✅ _încheiată (2026-09-07)_
 
 **Scop:** primul răspuns de la un model, ajuns în browser token cu token.
 
@@ -236,6 +236,27 @@ Livrat:
 
 ---
 
+### F2.5 — Deploy cu chei reale, configurate în platformă ← _faza curentă_
+
+**Scop:** aplicația e publicată devreme — imediat cum răspunde cu un model real (F1.4) și știe cine ești (F2) — pentru că problemele de mediu se descoperă mult mai ieftin acum, pe două funcționalități, decât mai târziu, pe zece. Deployul în sine s-a făcut deja în F1.2 (D-16); aici cheile de provider devin reale și pleacă din laptop spre platformă.
+
+Livrează:
+
+- proiectul importat în Vercel din repo-ul de pe GitHub — framework detectat automat, fără comenzi de build scrise de mână și fără `vercel.json` cât timp valorile implicite merg
+- `ANTHROPIC_API_KEY` (și restul variabilelor din `.env.example`) configurate în **Vercel → Project → Settings → Environment Variables**, pe **Production** și pe **Preview** — niciodată în repo
+- confirmarea că `npm run build` trece **și fără nicio cheie** (verificat local: `.env.local` mutat temporar deoparte) — lipsa unei chei e o stare normală a aplicației, nu o eroare de build sau un `throw` la pornire
+- `docs/vercel/README.md` completat cu pașii reali de configurare a cheilor și cu verificarea că merg
+- convenția de skill-uri pentru fluxuri repetitive: `.claude/skills/pre-deploy/SKILL.md`, oglindit în `.github/skills/pre-deploy/SKILL.md`, plus `scripts/sync-skills.sh` (după modelul `scripts/sync-agent-docs.sh`)
+- `README.md` cu linkul aplicației publicate
+
+**Gata când:** linkul public răspunde cu Claude adevărat, verificat pe telefon și pe laptop; un push pe un branch dă un Preview URL separat de cel de pe `main`; iar deschis fără nicio cheie configurată, chatul spune curat „provider neconfigurat" — nu o pagină de eroare.
+
+**Ce NU intră aici:** domeniu propriu, monitorizare, analytics — pași separați, care nu au ce căuta în primul deploy cu chei reale. Monitorizarea rămâne în F7.
+
+**De discutat la curs, pe cod:** Preview vs Production — fiecare branch primește URL-ul lui, `main` e cel public; de ce un link de preview e pentru review, nu pentru „rulează la tine"; unde se citesc logurile funcțiilor când ceva merge local și cade în producție; de ce un Route Handler nu e „gratis" la scară — rulează la fiecare cerere, iar tokenii se plătesc.
+
+---
+
 ### F3 — Memorie între sesiuni
 
 **Scop:** progresul se acumulează; UC-3 devine posibil.
@@ -294,19 +315,19 @@ Livrează:
 
 ---
 
-### F7 — Deploy și monitorizare
+### F7 — Monitorizare
 
-**Scop:** aplicația e online și se știe cât costă.
+**Scop:** se știe cât costă aplicația și se văd erorile fără să fie nevoie de un raport de la utilizator.
 
-> **Deployul propriu-zis s-a mutat mai devreme, în F1.2** (vezi D-16): o versiune publicabilă pe date inventate e plasa de siguranță dinaintea oricărei integrări. Pașii manuali sunt în [`docs/vercel/README.md`](./vercel/README.md). Ce rămâne aici e partea care are sens abia când există costuri reale.
+> **Deployul propriu-zis s-a mutat mai devreme, în F1.2** (vezi D-16), iar **configurarea cheilor reale în platformă s-a mutat în F2.5**: o aplicație publicată devreme, peste care fiecare funcționalitate nouă ajunge direct în producție. Pașii manuali sunt în [`docs/vercel/README.md`](./vercel/README.md). Ce rămâne aici e partea care are sens abia când există costuri reale de urmărit.
 
 Livrează:
 
 - ✅ deploy (mutat în F1.2)
-- ⬜ variabilele de mediu ale providerilor, configurate în platformă
+- ✅ variabilele de mediu ale providerilor, configurate în platformă (mutat în F2.5)
 - ⬜ monitorizarea erorilor și a consumului de tokeni
 
-**Gata când:** aplicația e accesibilă pe un URL public și se poate spune cât a costat ultima săptămână.
+**Gata când:** se poate spune cât a costat ultima săptămână și unde a eșuat un răspuns, fără să fie nevoie de un raport de la utilizator.
 
 ---
 
@@ -449,3 +470,4 @@ Acest fișier este sursa de adevăr. Regulile:
 | 2026-09-07 | F1.3 verificată pe Next 16 și corectate două detalii care veneau din obiceiuri de Next 14/15: `export const dynamic = "force-dynamic"` a fost **scos** din `api/about/route.ts` (în Next 16 Route Handlers nu se cachează implicit, cache-ul se cere cu `force-static`), iar nota despre runtime spune acum că **Edge Runtime e deprecat** în Next 16 și `nodejs` e implicitul. Streamingul nu depinde de Edge — `ReadableStream` merge pe ambele.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-09-07 | **F1.4 livrată**: chat cu model real (Anthropic prin AI SDK-ul Vercel), streaming în interfață, cheie doar pe server, cheie lipsă tratată ca 400 cu mesaj clar. Adăugate deciziile D-19 (mesajele conversației deschise aparțin lui `useChat`; store-ul ține lista) și D-20 (AI SDK-ul Vercel ca strat peste provideri). **Corectat față de ce scria aici**: `sendMessage` din store nu a fost rescrisă, ci ștearsă — cu consecința, asumată, că transcrierea nu supraviețuiește unui refresh până la F3. Apărut `src/lib/providers.ts` (registru cu `modelId`) și `docs/anthropic/README.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 2026-09-07 | **F1.5 încheiată** (nimic de construit, doar amânări documentate) și **F2 livrată**: `src/lib/system-prompt.ts` — persona de mentor de carieră tech, cu rol/domeniu, guardrail-uri și secțiunea de profil separate explicit, plus normalizarea profilului (input neîncredere) pe server. Profilul călătorește de la client la server la fiecare mesaj prin `prepareSendMessagesRequest`, citit din store la momentul trimiterii, nu la montare. Adăugate în interfață: indicator de profil activ pe ecranul de conversație nouă și buton „Șterge profilul" cu explicația unde stă / cine îl vede. §8.2 rescrisă cu câmpurile colectate efectiv și motivul pentru care riscul `localStorage` e acceptabil până la F6. **În treacăt, reparat un bug preexistent** (necomis) în `src/lib/providers.ts`/`types.ts`: intrarea `anthropic` avea `id: "anthropic-haiku"`, rămas dintr-un refactor anterior, ceea ce rupea `npm run build`; `"anthropic-haiku"` a fost scos din `ProviderId`, fiindcă nu mai era folosit ca valoare distinctă nicăieri. |
+| 2026-09-09 | Adăugată **F2.5 — Deploy cu chei reale, configurate în platformă**, ca fază proprie, imediat după F2: cheile de provider pleacă din laptop spre Vercel (Production + Preview), cu verificarea că build-ul trece și fără nicio cheie. Mutată **cu urmă** din F7 (bulletul „variabilele de mediu ale providerilor" e marcat ✅, cu notă „mutat în F2.5"); F7 devine **doar Monitorizare** — și-a schimbat și titlul. Numerotarea F3–F7 **nu s-a schimbat**: F2.5 e sub-fază, ca F1.1–F1.5, tocmai ca să nu invalideze referirile la F3/F4/F5/F6/F7 deja scrise ca comentarii în cod (16 fișiere). Apărută convenția de skill-uri: `.claude/skills/`, oglindit în `.github/skills/`, sincronizate cu `scripts/sync-skills.sh`. **Corectat în treacăt**: marcajul „← faza curentă" rămăsese pe titlul lui F1 din F1.2 încoace, deși F1 s-a încheiat la F1.5 și F2 s-a livrat între timp — mutat acum pe F2.5, singura fază reală în lucru.                                                                                                          |

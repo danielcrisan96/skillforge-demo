@@ -9,5 +9,5 @@ Fiecare integrare externă (provider de LLM, bază de date, autentificare, deplo
 
 | Integrare | La ce pas a intrat | Link                                                |
 | --------- | ------------------ | --------------------------------------------------- |
-| Vercel    | F1.2               | [`docs/vercel/README.md`](./vercel/README.md)       |
+| Vercel    | F1.2 → F2.5        | [`docs/vercel/README.md`](./vercel/README.md)       |
 | Anthropic | F1.4               | [`docs/anthropic/README.md`](./anthropic/README.md) |
