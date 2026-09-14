@@ -59,9 +59,9 @@ Câteva pachete din `package.json` nu se leagă de niciun cont sau cheie — nu 
 
 ### Ce există acum
 
-Faza curentă e **F2.5** (vezi [`docs/requirements.md`](docs/requirements.md)). Pașii F1.1 (scheletul), F1.2 (interfața completă), F1.3 (streaming de la server), F1.4 (chat cu model real) și F2 (profil și system prompt personalizat) sunt livrați.
+Faza curentă e **F4**, livrată parțial (vezi [`docs/requirements.md`](docs/requirements.md)): comutatorul de provider e gata, afișarea costului nu. Livrați până aici: F1.1 (scheletul), F1.2 (interfața completă), F1.3 (streaming de la server), F1.4 (chat cu model real), F2 (profil și system prompt personalizat), F2.5 (deploy cu chei reale), F2.6 (acțiuni și export), F3.1 (arhiva de conversații) și F3.2 (markdown, highlighting, editare).
 
-Conversația răspunde acum cu **Claude, în streaming**. Pentru asta e nevoie de o cheie de API — vezi [`docs/anthropic/README.md`](docs/anthropic/README.md).
+Conversația răspunde **în streaming**, cu providerul ales de lângă caseta de scris: Claude sau GPT. E nevoie de cel puțin o cheie de API — vezi [`docs/anthropic/README.md`](docs/anthropic/README.md) și [`docs/openai/README.md`](docs/openai/README.md). A doua e opțională: fără ea, opțiunea ei apare dezactivată, cu motivul, iar restul merge normal.
 
 **Fără cheie aplicația tot pornește** (`npm run build` trece pe orice laptop): restul — conversațiile, profilul, tema, secțiunea „Despre aplicație" — merge pe date inventate, iar chatul spune limpede ce variabilă lipsește, în loc să dea o eroare de server.
 
@@ -70,17 +70,19 @@ Ce poți face:
 - creezi, deschizi, redenumești și ștergi conversații (lista supraviețuiește unui refresh; **mesajele dintr-o conversație încă nu** — persistarea istoricului e F3)
 - trimiți un mesaj și primești un **răspuns real de la Claude, în streaming**, cu indicator „scrie…" și buton de Stop care chiar oprește generarea
 - îți editezi profilul (nume, stack, skills, obiectiv) din preferințe
+- **alegi cine răspunde la mesajul următor** — Anthropic sau OpenAI — din comutatorul de lângă caseta de scris, cu numele modelului lângă fiecare opțiune. Un provider fără cheie configurată apare dezactivat, cu motivul, nu dispare din listă
 - schimbi tema — sistem, luminoasă sau întunecată, doar din preferințe
 - folosești aplicația pe telefon: sidebar-ul intră într-un panou glisant
 - deschizi preferințele → **„Despre aplicație”** și vezi un text venind de pe server bucată cu bucată, prin SSE — fără niciun model de limbaj în spate
 
-| Rută         | Ce arată                                                                                                            |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `/`          | Aplicația: sidebar, bară de sus, conversație                                                                        |
-| `/demo`      | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                                      |
-| `/api/hello` | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul                   |
-| `/api/about` | Trimite descrierea aplicației **în streaming** (SSE). Repetiția protocolului pe care va veni răspunsul modelului    |
-| `/api/chat`  | Conversația: cheamă Claude prin AI SDK-ul Vercel și întoarce răspunsul în streaming. Singurul loc care atinge cheia |
+| Rută             | Ce arată                                                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`              | Aplicația: sidebar, bară de sus, conversație                                                                                                               |
+| `/demo`          | Rămășiță din F1.1 — un component client lângă unul server, ca material de curs                                                                             |
+| `/api/hello`     | Route Handler care citește o variabilă de mediu pe server. Strămoșul rutei pe care va sta agentul                                                          |
+| `/api/about`     | Trimite descrierea aplicației **în streaming** (SSE). Repetiția protocolului pe care va veni răspunsul modelului                                           |
+| `/api/chat`      | Conversația: cheamă providerul ales prin AI SDK-ul Vercel și întoarce răspunsul în streaming. Singurul loc care atinge o cheie                             |
+| `/api/providers` | Spune ce provideri au cheie configurată **pe server**, ca interfața să poată dezactiva o opțiune cu motiv. Trimite doar verdicte, niciodată valori de chei |
 
 Unde se schimbă datele inventate cu date reale: [`src/lib/mock/`](src/lib/mock/) și acțiunea `sendMessage` din [`src/store/useAppStore.ts`](src/store/useAppStore.ts). În rest, nimic nu știe de unde vine textul.
 
@@ -97,6 +99,8 @@ Codul e comentat în română și comentariile explică _de ce_ e scris așa —
 | [`docs/README.md`](docs/README.md)                     | Indexul documentației — tabelul cu integrările externe și la ce pas a intrat fiecare                   |
 | [`docs/_template/README.md`](docs/_template/README.md) | Șablonul pentru pașii manuali ai fiecărei integrări externe                                            |
 | [`docs/vercel/README.md`](docs/vercel/README.md)       | Pașii manuali pentru repo pe GitHub și deploy pe Vercel                                                |
+| [`docs/anthropic/README.md`](docs/anthropic/README.md) | Pașii manuali pentru cheia de Anthropic — contul, creditul, limita de cheltuială                       |
+| [`docs/openai/README.md`](docs/openai/README.md)       | Idem, pentru al doilea provider (F4) — variabila e opțională, aplicația merge și fără ea               |
 
 Fiecare integrare externă (provider de LLM, bază de date, autentificare, deploy) primește propriul `docs/<integrare>/README.md` cu partea care se face de mână: cont, generarea cheii, variabila de mediu, configurări în dashboard, costuri.
 

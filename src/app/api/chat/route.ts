@@ -1,8 +1,8 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import { APICallError, convertToModelMessages, streamText, type UIMessage } from "ai";
 
 import { buildSystemPrompt } from "@/lib/system-prompt";
-import { DEFAULT_MODEL_ID } from "@/lib/providers";
+import { PROVIDERS, resolveProviderId } from "@/lib/providers";
+import { getModel, isProviderConfigured } from "@/lib/providers.server";
 
 // Ruta pe care stă agentul.
 //
@@ -18,11 +18,17 @@ import { DEFAULT_MODEL_ID } from "@/lib/providers";
 // `toUIMessageStreamResponse()` scrie evenimentele, hook-ul le citește și le
 // adună. Diferența e că evenimentele descriu acum și părți de mesaj, nu doar
 // text.
+//
+// De la F4, ruta nu mai știe pe de rost cu cine vorbește: providerul vine în
+// corpul cererii, iar modelul se construiește prin `getModel`. Observă ce NU e
+// aici — niciun `if (providerId === "openai")`. Codul de mai jos ar arăta la fel
+// cu patru provideri; singura diferență ar fi lungimea registrului.
 
 export const runtime = "nodejs";
 
 /**
- * Ce trimite clientul: mesajele în formatul de UI, plus profilul utilizatorului.
+ * Ce trimite clientul: mesajele în formatul de UI, profilul utilizatorului și
+ * providerul/modelul alese lângă composer.
  *
  * Sunt DOUĂ formate de mesaj în joc, iar confuzia dintre ele e capcana clasică
  * a pasului. `UIMessage` descrie ce se AFIȘEAZĂ — are `id` (React are nevoie de
@@ -33,42 +39,54 @@ export const runtime = "nodejs";
  * `convertToModelMessages` face traducerea. Trimis direct, un `UIMessage` ar
  * duce la provider câmpuri pe care acesta nu le înțelege.
  *
- * Profilul vine de la client la fiecare mesaj. E input neîncredere și se
- * normalizează în `buildSystemPrompt`, care nu-l lasă să injecteze instrucțiuni
- * în prompt.
+ * `providerId` și `modelId` sunt `unknown`, nu `ProviderId` și `string`, și
+ * asta e intenționat: tot ce vine din corpul unei cereri e input neîncredere,
+ * iar un tip declarat aici ar fi o presupunere, nu o garanție — nimic din ce
+ * trimite browserul nu trece prin compilatorul nostru. Se validează contra
+ * registrului mai jos, exact ca profilul în `buildSystemPrompt`.
  */
 type ChatRequestBody = {
   messages: UIMessage[];
   profile?: unknown;
+  providerId?: unknown;
+  modelId?: unknown;
 };
 
 export async function POST(request: Request) {
-  // Cheia se citește AICI, în handler, nu la nivel de modul.
+  const { messages, profile, providerId, modelId }: ChatRequestBody = await request.json();
+
+  // Corpul se citește ÎNAINTE de verificarea cheii, spre deosebire de F1.4.
+  //
+  // Nu e o rearanjare cosmetică: de la F4 nu mai există „cheia" la singular.
+  // Care cheie trebuie să existe depinde de providerul cerut, iar providerul
+  // cerut e în corpul cererii — deci nu avem ce verifica până nu-l citim.
+  const provider = PROVIDERS[resolveProviderId(providerId)];
+
+  // Cheia se citește tot în interiorul handler-ului (prin `isProviderConfigured`),
+  // niciodată la nivel de modul.
   //
   // Diferența nu e cosmetică. Un `throw` scris lângă `import`-uri se execută
   // când Next încarcă fișierul — inclusiv în timpul lui `next build`. Rezultat:
   // proiectul n-ar mai compila pe niciun calculator fără `.env.local`, deci
   // nimeni n-ar putea nici măcar să-l pornească ca să vadă despre ce e vorba.
-  // Citită în handler, lipsa cheii afectează un singur request.
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
+  if (!isProviderConfigured(provider.id)) {
     // 400, nu 500.
     //
     // 500 înseamnă „serverul s-a stricat" și trimite omul să caute un bug care
     // nu există. Cheia lipsă e o CONFIGURARE incompletă, adică o cerere pe care
     // serverul refuză s-o onoreze — și e ceva ce utilizatorul poate repara.
     // Textul spune numele variabilei și fișierul, niciodată vreo valoare.
+    //
+    // Se ajunge aici în două feluri: fie cu o cerere fabricată de mână, fie cu o
+    // alegere rămasă în `localStorage` de pe vremea când cheia exista. În
+    // interfață arată ca orice altă eroare de chat — vezi `error` din `useChat`.
     return Response.json(
       {
-        error:
-          "Cheia de API nu e configurată. Adaugă ANTHROPIC_API_KEY în .env.local și repornește serverul (vezi docs/anthropic/README.md)."
+        error: `${provider.label} nu e configurat. Adaugă ${provider.apiKeyEnvVar} în .env.local și repornește serverul (vezi docs/${provider.id}/README.md).`
       },
       { status: 400 }
     );
   }
-
-  const { messages, profile }: ChatRequestBody = await request.json();
 
   // System prompt-ul se construiește din profil pe server, nu pe client.
   //
@@ -79,13 +97,15 @@ export async function POST(request: Request) {
   const systemPrompt = buildSystemPrompt(profile);
 
   const result = streamText({
-    // Modelul vine din registru, nu scris aici. Vezi `src/lib/providers.ts`
-    // pentru de ce id-ul de model are voie să existe într-un singur loc.
+    // Aici se vede ce cumpără abstracția: `streamText` primește un `LanguageModel`
+    // și nu-l interesează al cui e. Alegerea SDK-ului s-a făcut într-un singur
+    // loc (`getModel`), pe baza registrului — nu aici, printr-o ramură care ar
+    // fi trebuit editată la fiecare provider nou.
     //
-    // Cheia nu se pasează explicit: providerul citește singur
-    // `ANTHROPIC_API_KEY` din mediu. Verificarea de mai sus există ca să dăm un
-    // mesaj bun ÎNAINTE să ajungem aici, nu ca să transportăm noi secretul.
-    model: anthropic(DEFAULT_MODEL_ID),
+    // Cheia nu se pasează explicit: fiecare SDK își citește singur variabila din
+    // mediu. Verificarea de mai sus există ca să dăm un mesaj bun ÎNAINTE să
+    // ajungem aici, nu ca să transportăm noi secretul.
+    model: getModel(provider.id, modelId),
 
     // Persona și guardrail-uri, construite din profilul utilizatorului.
     //
@@ -109,6 +129,11 @@ export async function POST(request: Request) {
      * Al doilea: „AI_APICallError: 401" nu-i spune nimic omului care trebuie să
      * repare configurarea.
      *
+     * Textele sunt compuse din registru (`provider.label`, `provider.apiKeyEnvVar`),
+     * nu scrise cu numele unui provider anume: altfel, la al doilea provider,
+     * cineva cu o cheie de OpenAI greșită ar fi citit „Verifică
+     * ANTHROPIC_API_KEY" și ar fi căutat în locul greșit.
+     *
      * Ce se întoarce de aici ajunge în `error` din `useChat`. Cheia nu se
      * loghează niciodată — nici aici, nici altundeva.
      */
@@ -116,7 +141,7 @@ export async function POST(request: Request) {
       // Loghează pe server forma completă (utilă la depanare), fără să o
       // trimită mai departe. `console.error` scrie în terminalul serverului,
       // nu în browser.
-      console.error("Apelul către provider a eșuat:", error);
+      console.error(`Apelul către ${provider.label} a eșuat:`, error);
 
       // Ramificare pe STATUS, prin tipul de eroare al SDK-ului — nu pe textul
       // mesajului.
@@ -124,20 +149,21 @@ export async function POST(request: Request) {
       // Tentația e să scrii `error.message.includes("401")`. Nu merge: pentru o
       // cheie greșită, mesajul e „API key is invalid." și nu conține nicăieri
       // numărul. Textele se schimbă între versiuni și sunt traduse de provider;
-      // codul HTTP nu.
+      // codul HTTP nu. Și, de la al doilea provider, ar fi fost două seturi de
+      // texte de ghicit, nu unul.
       if (APICallError.isInstance(error)) {
         switch (error.statusCode) {
           case 401:
           case 403:
-            return "Cheia de API a fost refuzată de Anthropic. Verifică ANTHROPIC_API_KEY în .env.local.";
+            return `Cheia de API a fost refuzată de ${provider.label}. Verifică ${provider.apiKeyEnvVar} în .env.local.`;
           case 429:
-            return "Ai atins limita de cereri sau creditul contului Anthropic. Încearcă din nou peste puțin.";
+            return `Ai atins limita de cereri sau creditul contului ${provider.label}. Încearcă din nou peste puțin.`;
           case 404:
-            return "Modelul cerut nu există sau contul nu are acces la el. Vezi modelId din src/lib/providers.ts.";
+            return `Modelul ${provider.modelId} nu există sau contul ${provider.label} nu are acces la el. Vezi modelId din src/lib/providers.ts.`;
         }
       }
 
-      return "Apelul către model a eșuat. Detaliile complete sunt în terminalul serverului.";
+      return `Apelul către ${provider.label} a eșuat. Detaliile complete sunt în terminalul serverului.`;
     }
   });
 }

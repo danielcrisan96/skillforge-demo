@@ -77,11 +77,36 @@ export type Conversation = {
  * Providerii de model. Sunt un tip închis pentru că D-4 spune că providerul se
  * schimbă, iar un `string` ar permite o valoare care nu are implementare.
  *
- * Tipul stă aici; REGISTRUL (etichete, id-uri de model) s-a mutat în
- * `src/lib/providers.ts`, fiindcă de la F1.4 conține id-ul trimis către API —
- * o valoare de configurare, nu o formă de date.
+ * Tipul stă aici; REGISTRUL (etichete, id-uri de model, numele variabilei de
+ * mediu) s-a mutat în `src/lib/providers.ts`, fiindcă de la F1.4 conține id-ul
+ * trimis către API — o valoare de configurare, nu o formă de date.
+ *
+ * Fiind închis, tipul ăsta e și mecanismul care ține registrul și lista de
+ * SDK-uri în sinc: `MODEL_FACTORIES` din `providers.server.ts` e indexat pe el,
+ * deci un provider nou aici, fără ramura lui de SDK acolo, nu compilează.
  */
 export type ProviderId = "anthropic" | "openai";
+
+/**
+ * Ce știe SERVERUL despre un provider și interfața nu are cum să afle singură.
+ *
+ * Traversează granița client/server, deci e scris explicit (vezi §8.6: cheile
+ * JSON sunt contract, nu text afișat). Îl produce `GET /api/providers`.
+ *
+ * Ce NU conține, niciodată: valoarea cheii, nici măcar trunchiată sau sub formă
+ * de „ultimele 4 caractere". Singurul lucru care pleacă spre browser e DA/NU
+ * plus un motiv gata de citit — atât îi trebuie interfeței ca să arate opțiunea
+ * dezactivată, cu explicație, în loc s-o ascundă. O opțiune dispărută din listă
+ * e o întrebare fără răspuns („de ce nu văd OpenAI?"); una dezactivată, cu
+ * motivul lângă ea, e o instrucțiune.
+ */
+export type ProviderAvailability = {
+  id: ProviderId;
+  /** Există o cheie pentru providerul ăsta în mediul serverului. */
+  configured: boolean;
+  /** Motivul, gata de afișat, când `configured` e `false`. `null` când e configurat. */
+  unavailableReason: string | null;
+};
 
 /**
  * Preferința de temă a utilizatorului — ce a ales el, nu ce se vede pe ecran.

@@ -8,6 +8,7 @@ import { ChatInput } from "@/components/chat/chat-input";
 import { EmptyState } from "@/components/chat/empty-state";
 import { MessageList } from "@/components/chat/message-list";
 import { setActiveMessages } from "@/lib/active-conversation-bridge";
+import { PROVIDERS, resolveProviderId } from "@/lib/providers";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/store/useAppStore";
 import { useHydrated } from "@/store/useHydrated";
@@ -82,13 +83,40 @@ function Conversation({ conversationId }: { conversationId: string }) {
   // ar afla niciodată, pentru că `useState(() => new DefaultChatTransport(...))`
   // rulează inițializatorul o singură dată. Cu `getState()` apelat înăuntrul
   // funcției, fiecare cerere citește profilul curent din store.
+  //
+  // De la F4, providerul călătorește pe aceeași cale și din exact același motiv,
+  // doar că aici greșeala ar fi fost și mai vizibilă: comutatorul de lângă
+  // casetă e făcut ca să schimbe cine răspunde LA MESAJUL URMĂTOR. Citit la
+  // montare, ar fi arătat „OpenAI" în interfață și ar fi trimis la Anthropic
+  // până la următoarea comutare de conversație — adică exact tipul de bug pe
+  // care nimeni nu-l bănuiește, pentru că ecranul spune altceva decât face
+  // codul.
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages, id }) => ({
-          body: { messages, id, profile: useAppStore.getState().profile }
-        })
+        prepareSendMessagesRequest: ({ messages, id }) => {
+          // Trecut prin registru înainte să plece: o valoare veche rămasă în
+          // `localStorage` (un provider scos între timp) devine cel implicit,
+          // aceeași rezolvare pe care o face și serverul când primește cererea.
+          const providerId = resolveProviderId(useAppStore.getState().providerId);
+
+          return {
+            body: {
+              messages,
+              id,
+              profile: useAppStore.getState().profile,
+              providerId,
+              // Modelul vine tot din registru, nu din store: store-ul ține
+              // ALEGEREA (care provider), registrul ține configurarea (ce model
+              // al lui folosim). Ținut în store, ar fi rămas înghețat în
+              // `localStorage` la id-ul de model de la instalare — și ar fi
+              // continuat să ceară un model retras, mult după ce registrul a
+              // trecut pe altul.
+              modelId: PROVIDERS[providerId].modelId
+            }
+          };
+        }
       })
   );
 

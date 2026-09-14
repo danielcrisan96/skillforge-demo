@@ -11,3 +11,4 @@ Fiecare integrare externă (provider de LLM, bază de date, autentificare, deplo
 | --------- | ------------------ | --------------------------------------------------- |
 | Vercel    | F1.2 → F2.5        | [`docs/vercel/README.md`](./vercel/README.md)       |
 | Anthropic | F1.4               | [`docs/anthropic/README.md`](./anthropic/README.md) |
+| OpenAI    | F4                 | [`docs/openai/README.md`](./openai/README.md)       |

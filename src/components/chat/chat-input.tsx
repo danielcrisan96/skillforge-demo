@@ -3,11 +3,10 @@
 import { useEffect, useRef } from "react";
 import { Plus, Send, Square } from "lucide-react";
 
+import { ProviderPicker } from "@/components/chat/provider-picker";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PROVIDERS } from "@/lib/providers";
-import { useAppStore } from "@/store/useAppStore";
 
 // Composer-ul: cutia din care pleacă mesajele.
 //
@@ -36,9 +35,6 @@ type ChatInputProps = {
 };
 
 export function ChatInput({ value, onChange, onSubmit, isBusy, onStop }: ChatInputProps) {
-  const providerId = useAppStore(state => state.providerId);
-
-  const provider = PROVIDERS[providerId];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Creșterea odată cu textul se face aici, nu din CSS: `rows` e fix, iar
@@ -104,10 +100,9 @@ export function ChatInput({ value, onChange, onSubmit, isBusy, onStop }: ChatInp
 
         <div className="flex items-center gap-2">
           {/* Providerul e afișat permanent, ca să nu existe dubiu despre cine ar
-              răspunde. Se schimbă din preferințe. */}
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            {provider.label} · <span className="font-mono">{provider.modelLabel}</span>
-          </span>
+              răspunde — și, de la F4, se și schimbă de aici. Alegerea se aplică
+              mesajului următor, nu retroactiv conversației. */}
+          <ProviderPicker />
 
           {/* Un singur buton care își schimbă rolul, nu două alăturate: cât
               timp modelul scrie, singura acțiune care are sens e oprirea. */}

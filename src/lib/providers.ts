@@ -1,16 +1,23 @@
 import type { ProviderId } from "@/lib/types";
 
-// Registrul providerilor de model.
+// Registrul providerilor de model. SINGURA listă de providere din aplicație.
 //
-// De ce un fișier separat, și nu mai departe în `types.ts`: de la pasul acesta
-// registrul nu mai conține doar text de afișat, ci `modelId` — șirul exact pe
-// care îl primește API-ul providerului. Ăsta e singurul loc din proiect unde e
-// scris.
+// ⚠️ FIȘIERUL ĂSTA AJUNGE ÎN BROWSER. E importat din composer (`provider-picker.tsx`),
+// deci conținutul lui e cod de client: oricine deschide DevTools îl poate citi.
+// De aceea aici nu intră NICIO cheie și niciun `process.env`. Ce ține de chei stă
+// în `providers.server.ts`, care nu e importat niciodată dintr-un component.
 //
-// Motivul e cel banal și cel care doare: un id de model scris în două fișiere e
-// un id care va rămâne în urmă într-unul din ele. Ruta de server îl citește de
-// aici, interfața tot de aici — deci schimbarea modelului e o singură linie, iar
-// ce scrie în composer nu poate să mintă despre cine a răspuns de fapt.
+// Ce e în joc, concret: `apiKeyEnvVar` de mai jos e NUMELE variabilei, nu valoarea
+// ei. Numele e public oricum (e scris în `.env.example` și în documentație) și
+// folosește la un mesaj de eroare util; valoarea nu are voie să treacă granița.
+//
+// De ce un registru și nu un lanț de `if (provider === "anthropic") … else if`:
+// testul abstracției nu e cât de elegant arată, ci câte fișiere trebuie atinse ca
+// să adaugi a doua implementare. Cu un registru, un provider nou = o intrare aici
+// + o ramură în `getModel` (pe care compilatorul o CERE, vezi acolo). Composer-ul,
+// preferințele și ruta de chat nu se ating — ele iterează lista, nu o cunosc pe
+// de rost. Cu `if`-uri, fiecare din cele trei locuri ar fi trebuit editat, iar la
+// al patrulea provider ai patru ramuri în trei fișiere, care se desincronizează.
 
 export type ProviderInfo = {
   id: ProviderId;
@@ -19,35 +26,53 @@ export type ProviderInfo = {
   /**
    * Id-ul de model trimis către API. NU e text de afișat: o greșeală aici e o
    * eroare de la provider, nu o etichetă urâtă.
+   *
+   * Se citește din documentația CURENTĂ a providerului, niciodată din memorie
+   * sau prin analogie cu alt provider. Un id inventat („gpt-5-turbo", care sună
+   * plauzibil și nu există) dă un 404 care arată exact ca un bug de cod, deși e
+   * o problemă de citit documentația.
    */
   modelId: string;
   /** Cum se numește modelul pentru un om. Poate diferi de `modelId`. */
   modelLabel: string;
   /**
-   * Există cod care chiar cheamă providerul ăsta?
+   * NUMELE variabilei de mediu în care stă cheia — niciodată valoarea.
    *
-   * În F1.4 doar Anthropic e implementat; OpenAI intră în F4 (vezi D-4). Fără
-   * steagul ăsta, interfața ar lăsa utilizatorul să aleagă un provider care
-   * răspunde cu o eroare — iar vina ar părea a fi a cheii, nu a fazei.
+   * Stă în registru, deși e folosit doar pe server, ca „un provider nou = o
+   * intrare nouă" să rămână adevărat: altfel numele ar fi fost a doua listă, în
+   * alt fișier, și s-ar fi desincronizat de asta. Clientul îl folosește doar ca
+   * text într-un mesaj („lipsește OPENAI_API_KEY"), niciodată ca să citească
+   * `process.env` — vezi avertismentul din capul fișierului.
    */
-  implemented: boolean;
+  apiKeyEnvVar: string;
 };
 
+/**
+ * Ordinea de aici e ordinea din interfață — `Object.keys` păstrează ordinea de
+ * inserare pentru chei-text, deci lista din composer nu are nevoie de o sortare
+ * separată (care ar fi fost al doilea loc de ținut în sinc).
+ *
+ * Anthropic rămâne PRIMUL și implicit: pe creditele lui rulează cursul.
+ */
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   anthropic: {
     id: "anthropic",
     label: "Anthropic",
     modelId: "claude-haiku-4-5",
     modelLabel: "Claude Haiku 4.5",
-    implemented: true
+    apiKeyEnvVar: "ANTHROPIC_API_KEY"
   },
 
   openai: {
     id: "openai",
     label: "OpenAI",
-    modelId: "gpt-5",
-    modelLabel: "GPT-5",
-    implemented: false
+    // Citit din documentația oficială la 2026-09-14
+    // (developers.openai.com/api/docs/models, /api/docs/pricing): modelul din
+    // familia curentă optimizat pentru volum și cost — echivalentul de rol al
+    // lui Haiku de mai sus, ca cele două opțiuni să fie comparabile la preț.
+    modelId: "gpt-5.6-luna",
+    modelLabel: "GPT-5.6 Luna",
+    apiKeyEnvVar: "OPENAI_API_KEY"
   }
 };
 
@@ -56,12 +81,29 @@ export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[];
 /**
  * Providerul cu care pornește aplicația și modelul lui.
  *
- * Ruta de server citește DE AICI, nu dintr-un șir scris în rută. Alegerea din
- * preferințe rămâne, în pasul acesta, doar vizuală: ca serverul să asculte de
- * ea, providerul ar trebui să călătorească în corpul cererii — iar asta cere
- * validare pe server, altfel clientul ar putea cere orice model. Se face în F4,
- * o dată cu al doilea provider real.
+ * E și valoarea pe care se cade când clientul cere ceva ce nu există în registru
+ * (vezi `resolveProviderId`). Anthropic, pentru că pe creditele lui rulează
+ * cursul — un fallback care ar comuta tăcut pe celălalt provider ar cheltui din
+ * alt buget decât cel așteptat.
  */
 export const DEFAULT_PROVIDER_ID: ProviderId = "anthropic";
 
 export const DEFAULT_MODEL_ID = PROVIDERS[DEFAULT_PROVIDER_ID].modelId;
+
+/**
+ * Validează un id de provider venit din exterior, contra registrului.
+ *
+ * `unknown`, nu `ProviderId`, fiindcă exact asta primim: o valoare din corpul
+ * unei cereri HTTP sau din `localStorage`. Tipul din TypeScript e o promisiune
+ * de la compilare, iar nimic din cele două nu trece prin compilatorul nostru —
+ * `localStorage` poate conține un provider șters între timp dintr-o versiune mai
+ * veche a aplicației, iar corpul cererii poate fi scris de mână cu `curl`.
+ *
+ * Funcția stă AICI, nu în `providers.server.ts`, pentru că e validare pură
+ * contra unei liste — nu atinge nicio cheie și niciun SDK. Serverul o folosește
+ * ca să nu trimită mai departe o valoare fabricată; clientul, ca să nu afișeze
+ * un provider care nu mai există.
+ */
+export function resolveProviderId(value: unknown): ProviderId {
+  return typeof value === "string" && value in PROVIDERS ? (value as ProviderId) : DEFAULT_PROVIDER_ID;
+}
