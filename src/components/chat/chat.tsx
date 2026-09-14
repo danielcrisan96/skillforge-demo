@@ -173,6 +173,21 @@ function Conversation({ conversationId }: { conversationId: string }) {
     setDraft("");
   };
 
+  // Editarea unui mesaj al UTILIZATORULUI: SDK-ul are deja tot ce ne trebuie
+  // în `sendMessage`, cu `messageId` — nu tăiem lista noi, cu `setMessages`,
+  // ca o a doua cale de a face același lucru. Cu `messageId` dat, `sendMessage`
+  // taie `state.messages` chiar la mesajul cu acel id (deci și tot ce a urmat
+  // după el — inclusiv răspunsul vechi), îl ÎNLOCUIEȘTE cu textul nou, apoi
+  // pornește cererea pe lista rezultată. Exact cerința pasului: un singur fir,
+  // nu două paralele.
+  //
+  // Butonul de editare e dezactivat cât timp `isBusy` (vezi `MessageItem`),
+  // deci verificarea de-aici e o plasă de siguranță, nu calea principală.
+  const handleEditMessage = (messageId: string, text: string) => {
+    if (isBusy) return;
+    void sendMessage({ text, messageId });
+  };
+
   if (messages.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
@@ -195,6 +210,7 @@ function Conversation({ conversationId }: { conversationId: string }) {
             error={error}
             isBusy={isBusy}
             onRetry={messageId => regenerate({ messageId })}
+            onEdit={handleEditMessage}
           />
         </div>
       </ScrollArea>

@@ -40,6 +40,7 @@ The reason this rule exists: the agent writes the code, but the manual steps are
 - At deploy time the same variables are configured in the platform, never hardcoded.
 - The system prompt is built **only on the server**, and only in `src/lib/system-prompt.ts`. A second place that composes the persona is a bug, not an optimization — it drifts from the first within weeks and the app ends up with two personalities.
 - Data coming from the browser (the user profile, or anything else a client sends) is **untrusted input** and must be normalized on the server — explicit allowed fields, trimmed text, capped length — before it enters a prompt. Free-text fields a user can edit (like a career goal) can carry a prompt injection attempt; normalization is what keeps that text as data instead of instructions.
+- **Model output is untrusted input too, and it is rendered without raw HTML.** A message's text is markdown, rendered through the single component `src/components/chat/markdown.tsx` — every place that shows a message goes through it, none re-implements formatting. The HTML-in-markdown plugin (`rehype-raw`) is never enabled, and `dangerouslySetInnerHTML` is never used on model output, anywhere. Without that rule, an `<img onerror=...>` written by the model — or reached through it from someone else's document, once retrieval is added — becomes XSS in this app the moment it is rendered as an element instead of text. This is the standard chat-app injection vector, not a theoretical concern.
 
 ## Stack and code conventions
 

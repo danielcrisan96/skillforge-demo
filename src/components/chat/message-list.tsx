@@ -25,13 +25,23 @@ type MessageListProps = {
   isLoading: boolean;
   /** Eroare reală de la model sau de la rută. */
   error?: Error;
-  /** Cererea curentă e „submitted" sau „streaming" — dezactivează reluarea. */
+  /** Cererea curentă e „submitted" sau „streaming" — dezactivează reluarea și editarea. */
   isBusy?: boolean;
   /** Reia răspunsul asistentului cu id-ul dat. Absent pe ecranele fără chat activ. */
   onRetry?: (messageId: string) => void;
+  /** Editează mesajul utilizatorului cu id-ul dat și retrimite. */
+  onEdit?: (messageId: string, text: string) => void;
 };
 
-export function MessageList({ messages, isWaiting, isLoading, error, isBusy = false, onRetry }: MessageListProps) {
+export function MessageList({
+  messages,
+  isWaiting,
+  isLoading,
+  error,
+  isBusy = false,
+  onRetry,
+  onEdit
+}: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Derulare la ultimul mesaj.
@@ -78,6 +88,7 @@ export function MessageList({ messages, isWaiting, isLoading, error, isBusy = fa
           message={message}
           isBusy={isBusy}
           onRetry={onRetry}
+          onEdit={onEdit}
           // Câte mesaje s-ar pierde reluând ACEST răspuns: tot ce vine după
           // el. Pe ultimul e 0 — reluarea înlocuiește doar răspunsul curent,
           // fără confirmare. Pe unul mai vechi, reluarea taie și tot ce a

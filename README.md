@@ -42,6 +42,15 @@ npm run dev                   # http://localhost:3000
 | `sh scripts/sync-skills.sh`         | Copiază skill-urile din `.claude/skills/` în oglinda `.github/skills/`       |
 | `sh scripts/sync-skills.sh --check` | Verifică dacă oglinda e la zi, fără s-o scrie (util ca pre-commit sau în CI) |
 
+### Dependențe
+
+Câteva pachete din `package.json` nu se leagă de niciun cont sau cheie — nu sunt integrări (vezi tabelul din [`docs/README.md`](docs/README.md)), sunt biblioteci obișnuite, dar merită spus de ce sunt acolo:
+
+| Pachet                                                         | De ce                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `react-markdown` + `remark-gfm`                                | Randează markdown-ul din răspunsul modelului ca elemente React, nu ca HTML injectat — vezi [`src/components/chat/markdown.tsx`](src/components/chat/markdown.tsx). `remark-gfm` adaugă tabelele (extensie GitHub, nu markdown standard) |
+| `react-syntax-highlighter` + `@types/react-syntax-highlighter` | Highlighting pe blocurile de cod — importat pe calea „light", cu doar 7 limbaje înregistrate explicit (`typescript`, `tsx`, `javascript`, `json`, `bash`, `sql`, `python`), nu pachetul complet, cu sute de limbaje nefolosite          |
+
 ### Aplicația publicată
 
 **F2.5** (vezi [`docs/requirements.md`](docs/requirements.md)): aplicația e publicată pe Vercel, cu cheia de Anthropic configurată în platformă — nu pe laptop. Pașii manuali sunt în [`docs/vercel/README.md`](docs/vercel/README.md).
