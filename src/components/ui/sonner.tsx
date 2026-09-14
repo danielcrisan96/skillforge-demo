@@ -3,19 +3,29 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react";
 
-import { useResolvedTheme } from "@/components/theme/theme-provider";
+import { useTheme } from "@/components/theme/theme-provider";
 
-// Component generat de shadcn, cu o singură modificare făcută intenționat:
-// tema vine din `useResolvedTheme()` (store-ul nostru), nu din `next-themes`,
-// cum era în varianta livrată.
+// Component generat de shadcn — EXCEPȚIE explicită de la regula „nu se editează
+// manual fișiere din `src/components/ui/`": fără modificarea asta, `Toaster`
+// și-ar lua tema din `next-themes` (biblioteca pe care shadcn o instalează
+// implicit pentru el) și ar primi mereu „system", pentru că niciun provider
+// de-al ei nu există în arbore — notificările n-ar urma tema aleasă de
+// utilizator.
 //
-// Motivul: sonner își randează notificările într-un portal, în afara arborelui
-// nostru, deci nu moștenește tema din CSS și trebuie să i se spună explicit care
-// e. Dacă ar întreba `next-themes`, ar exista două surse de adevăr pentru temă
-// și notificările ar rămâne albe pe o aplicație trecută pe dark.
+// Modificarea: tema vine din `useTheme()` — hook-ul nostru, din
+// `theme-provider.tsx` — nu din `next-themes`.
+//
+// Motivul pentru care tot trebuie cerută explicit, și nu moștenită din CSS ca
+// restul aplicației: sonner își randează notificările într-un portal, în afara
+// arborelui nostru, deci clasa `.dark` de pe `<html>` nu-i schimbă automat
+// aspectul — biblioteca vrea tema ca VALOARE, primită prin prop.
+//
+// `next-themes` rămâne în `package.json`: a venit ca dependență a lui `sonner`
+// (shadcn o instalează pentru asta), nu ca alegere a proiectului. O dependență
+// nefolosită direct nu se șterge la ghici — ar putea fi cerută și de alt pachet.
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const theme = useResolvedTheme();
+  const { resolvedTheme: theme } = useTheme();
 
   return (
     <Sonner

@@ -2,11 +2,11 @@
 
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 
+import { useTheme } from "@/components/theme/theme-provider";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ThemePreference } from "@/lib/types";
-import { useAppStore } from "@/store/useAppStore";
 
 // Singurul loc din aplicație de unde se schimbă tema.
 //
@@ -31,8 +31,9 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; description: strin
 ];
 
 export function AppearanceForm() {
-  const theme = useAppStore(state => state.theme);
-  const setTheme = useAppStore(state => state.setTheme);
+  // Cerută prin hook, direct aici — nu prin props de la un părinte. Vezi
+  // `theme-provider.tsx` pentru mecanism.
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="flex flex-col gap-6">

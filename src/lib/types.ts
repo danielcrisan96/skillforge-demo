@@ -1,3 +1,5 @@
+import type { UIMessage } from "ai";
+
 // Formele de date ale aplicației, într-un singur fișier.
 //
 // De ce contează acum, când datele sunt inventate: exact aceste tipuri vor
@@ -47,21 +49,28 @@ export type Profile = {
 };
 
 /**
- * O conversație, așa cum apare în lista din stânga.
+ * O conversație, așa cum apare în lista din stânga — PLUS mesajele ei.
  *
- * Observă ce NU e aici: mesajele. Începând cu F1.4, transcrierea conversației
- * deschise aparține lui `useChat` (vezi D-19). Store-ul ține lista — ce
- * conversații există, cum se numesc, care e selectată — și atât.
+ * De la F1.4 (D-19) și până la F3.1, `messages` lipsea de tot: transcrierea
+ * conversației deschise aparținea doar lui `useChat`, iar store-ul ținea doar
+ * lista. Motivul acelei alegeri rămâne valabil — două locuri care țin aceleași
+ * mesaje se desincronizează garantat, pentru că în timpul streamului sosesc
+ * zeci de actualizări pe secundă și al doilea deținător rămâne mereu în urmă.
  *
- * Motivul e o lecție plătită scump în multe aplicații: două locuri care țin
- * aceleași mesaje se desincronizează garantat. Unul primește bucata de stream,
- * celălalt nu; unul știe de mesajul în curs, celălalt are versiunea de acum
- * două secunde. Alegerea trebuie să fie explicită, nu întâmplătoare.
+ * Ce s-a schimbat la F3.1: `messages` revine, dar cu un rol diferit de cel pe
+ * care l-ar fi avut înainte de F1.4. NU e sursa de adevăr cât timp răspunsul
+ * curge — aceea rămâne `useChat`. E ARHIVA: instantaneul scris aici o singură
+ * dată, la finalul streamului (vezi `syncConversationMessages` din
+ * `useAppStore.ts`), ca discuția să supraviețuiască unui refresh sau unei
+ * comutări pe altă conversație. Câtă vreme un răspuns e în curs, `messages` de
+ * aici arată tot ce era înainte de mesajul curent — nu o versiune parțială,
+ * pe jumătate scrisă.
  */
 export type Conversation = {
   id: string;
   title: string;
   createdAt: string;
+  messages: UIMessage[];
 };
 
 /**

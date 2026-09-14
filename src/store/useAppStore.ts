@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { UIMessage } from "ai";
 
 import { MOCK_CONVERSATIONS, NEW_CONVERSATION_TITLE } from "@/lib/mock/conversations";
 import { MOCK_PROFILE } from "@/lib/mock/profile";
-import type { Conversation, Profile, ProviderId, ThemePreference } from "@/lib/types";
+import type { Conversation, Profile, ProviderId } from "@/lib/types";
 
 // Starea aplicației, într-un singur store.
 //
@@ -17,22 +18,60 @@ import type { Conversation, Profile, ProviderId, ThemePreference } from "@/lib/t
 // iar aplicația ar părea stricată deși nu e. `localStorage` e suficient pentru
 // că în faza asta nu există server cu stare — vezi §8.2 din requirements pentru
 // ce înseamnă asta pentru datele personale.
+//
+// STORE vs. `createContext`+`useContext` — comparația pregătită la F3.1 și
+// ÎNCHISĂ aici, pe cod real: tema a ieșit din acest store și a trecut pe
+// context, în `src/components/theme/theme-provider.tsx`.
+//
+// `useContext` n-are selectors: orice consumator al providerului se re-randează
+// la ORICE schimbare a valorii din context, chiar dacă citește doar un câmp din
+// ea — și cere un `<Provider>` undeva în arbore, deci se vede în JSX de unde vine
+// valoarea. Un store Zustand se citește din orice fișier, cu
+// `useAppStore(state => state.x)`, fără provider — dar exact de-asta valoarea e
+// mai greu de urmărit „de unde vine”: nu apare nicăieri în arborele de
+// componente, doar în importuri.
+//
+// Concluzia, ca regulă de decizie: o valoare care se schimbă RAR și are PUȚINI
+// consumatori (tema aleasă manual dintr-un meniu, un flag de feature) e un caz
+// bun pentru context — costul re-randării nefolosite e mic, iar vizibilitatea în
+// arbore contează. O stare care se schimbă DES și e citită din locuri multe,
+// neînrudite (conversațiile de aici: sidebar, header, chat, toate la fiecare
+// token) are nevoie de selectors ca să nu re-randeze tot ce n-are treabă cu
+// schimbarea — și acolo store-ul câștigă clar.
+//
+// De ce exact tema a fost aleasă ca exemplu de context, și nu altceva din
+// aplicație: are UN SINGUR consumator logic („ce se vede pe ecran acum"), citit
+// din puține componente (fereastra de preferințe, `Toaster`-ul de notificări),
+// și se schimbă rar — un clic în preferințe, sau ocazional un eveniment de la
+// sistemul de operare. Profil opus conversațiilor, care rămân în store.
 
 /**
- * CINE DEȚINE CE, de la F1.4 încoace (vezi D-19 din requirements).
+ * CINE DEȚINE CE, de la F3.1 încoace (vezi D-19 din requirements — actualizată
+ * la acest pas).
  *
- * Store-ul ține LISTA de conversații: id, titlu, care e selectată. Atât.
- * Mesajele conversației deschise aparțin lui `useChat` și trăiesc în
- * `chat.tsx`.
+ * CÂT TIMP UN RĂSPUNS CURGE, mesajele aparțin lui `useChat`, în `chat.tsx`. Hook-ul
+ * le construiește token cu token; nimic altceva nu le scrie în timpul ăsta.
  *
- * Ce era aici înainte și a dispărut: `sendMessage`, textul de răspuns simulat și
- * `setTimeout`-ul care îl întârzia. Nu au fost mutate, ci ȘTERSE — acum
+ * Store-ul e ARHIVA: lista de conversații, id, titlu ȘI mesajele lor — dar
+ * scrise aici o SINGURĂ dată, la finalul streamului, prin
+ * `syncConversationMessages`. Nu la fiecare token.
+ *
+ * De ce nu la fiecare token, deși ar părea mai „la zi": `persist` scrie în
+ * `localStorage` SINCRON, la orice schimbare de stare din store. O sincronizare
+ * pe token ar însemna sute de serializări ale ÎNTREGULUI istoric de conversații
+ * în câteva secunde — pe o conversație lungă, interfața s-ar bloca vizibil cât
+ * timp thread-ul principal serializează JSON în loc să deseneze ecranul.
+ *
+ * Compromisul asumat, cu bună știință: un răspuns întrerupt de un refresh LA
+ * MIJLOCUL streamului se pierde — arhiva încă are versiunea de dinaintea
+ * mesajului curent, pentru că sincronizarea n-a apucat să ruleze. E un
+ * compromis, nu un bug: o persistență care supraviețuiește și la asta cere un
+ * server care primește fiecare bucată pe măsură ce vine (F6), nu `localStorage`,
+ * care oricum n-ar putea fi scris mai des fără costul de mai sus.
+ *
+ * Ce era aici înainte și a dispărut la F1.4: `sendMessage`, textul de răspuns
+ * simulat și `setTimeout`-ul care îl întârzia. Nu au fost mutate, ci ȘTERSE —
  * răspunsul vine de la model, prin `/api/chat`, iar erorile sunt reale.
- *
- * De ce nu ținem și noi o copie a mesajelor, „pentru siguranță": pentru că nu
- * există așa ceva. În timpul streamului, hook-ul primește zeci de actualizări pe
- * secundă; orice al doilea deținător ar rămâne în urmă la prima bucată pierdută,
- * și nimic n-ar semnala asta. Un singur deținător, ales explicit.
  */
 
 function createId(): string {
@@ -42,7 +81,6 @@ function createId(): string {
 type AppState = {
   profile: Profile;
   providerId: ProviderId;
-  theme: ThemePreference;
   conversations: Conversation[];
   activeConversationId: string | null;
 
@@ -96,7 +134,6 @@ type AppState = {
    */
   clearProfile: () => void;
   setProviderId: (providerId: ProviderId) => void;
-  setTheme: (theme: ThemePreference) => void;
 
   createConversation: () => void;
   selectConversation: (id: string) => void;
@@ -110,6 +147,21 @@ type AppState = {
    * clicuri ar lăsa cinci conversații goale în sidebar.
    */
   materializeConversation: (title: string) => void;
+
+  /**
+   * Scrie în arhivă instantaneul curent de mesaje al conversației `id`.
+   *
+   * SINGURUL loc unde mesajele lui `useChat` ajung în store — și se cheamă
+   * DOAR când streamul s-a oprit (`status` = „ready" sau „error" în
+   * `chat.tsx`), niciodată per token. Vezi comentariul de la începutul
+   * fișierului pentru motiv.
+   *
+   * Dacă `id` nu (mai) există în listă — conversația a fost ștearsă cât timp
+   * răspunsul era în curs — nu face nimic: fără verificarea asta,
+   * `conversations.map` ar întoarce oricum un array nou, la fel ca înainte, și
+   * `persist` ar scrie din nou în `localStorage` degeaba.
+   */
+  syncConversationMessages: (id: string, messages: UIMessage[]) => void;
 };
 
 export const useAppStore = create<AppState>()(
@@ -117,7 +169,6 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       profile: MOCK_PROFILE,
       providerId: "anthropic",
-      theme: "system",
       conversations: MOCK_CONVERSATIONS,
       // `null` înseamnă „ecranul de conversație nouă”, nu „nu s-a încărcat încă”.
       // Sunt două lucruri diferite; al doilea e `hasHydrated`.
@@ -134,7 +185,6 @@ export const useAppStore = create<AppState>()(
           profile: { userId: state.profile.userId, name: "", stack: "", skills: [], goal: "" }
         })),
       setProviderId: providerId => set({ providerId }),
-      setTheme: theme => set({ theme }),
 
       createConversation: () => {
         // Nu creăm încă un obiect de conversație: dacă utilizatorul apasă „New”
@@ -181,7 +231,11 @@ export const useAppStore = create<AppState>()(
               // atunci, primele cuvinte sunt mai utile decât un titlu fix:
               // lista de conversații trebuie să fie citibilă dintr-o privire.
               title: trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed || NEW_CONVERSATION_TITLE,
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              // Goală acum: primul mesaj tocmai pleacă spre model, dar încă n-a
+              // răspuns nimic. `syncConversationMessages` o umple la finalul
+              // streamului — vezi mai jos.
+              messages: []
             },
             ...state.conversations
           ],
@@ -190,6 +244,15 @@ export const useAppStore = create<AppState>()(
           // de chat nu se schimbă și stream-ul în curs nu e întrerupt.
           activeConversationId: id
         }));
+      },
+
+      syncConversationMessages: (id, messages) => {
+        set(state => {
+          if (!state.conversations.some(c => c.id === id)) return state;
+          return {
+            conversations: state.conversations.map(c => (c.id === id ? { ...c, messages } : c))
+          };
+        });
       }
     }),
     {
@@ -201,25 +264,47 @@ export const useAppStore = create<AppState>()(
        * descriu momentul curent, nu datele utilizatorului: salvate, aplicația
        * s-ar redeschide cu fereastra de preferințe deschisă peste conversație și
        * cu un id de schiță rămas de la sesiunea trecută.
+       *
+       * Observă și ce NU există deloc în `AppState`, nu doar ce e exclus aici:
+       * `status` (submitted/streaming/ready/error) și `error` de la `useChat`
+       * n-au ajuns niciodată în store — rămân locale în `chat.tsx`, derivate din
+       * hook. Dacă le-am fi ținut și noi aici, `persist` le-ar fi scris în
+       * `localStorage` la fiecare schimbare: un refresh la mijlocul unui
+       * răspuns ar deschide aplicația pe „se încarcă…” înghețat, iar o eroare
+       * veche ar reapărea peste o conversație nouă, curată.
+       *
+       * Nici tema nu mai e aici — a ieșit din `AppState` de tot, la pasul unde
+       * a trecut pe `createContext`+`useContext` (`theme-provider.tsx`). Are
+       * acum propria cheie în `localStorage` (`skillforge-theme`), scrisă
+       * direct de provider, nu prin acest `persist`. Două locuri care ar ține
+       * aceeași preferință seria un comutator care merge pe jumătate.
        */
       partialize: state => ({
         profile: state.profile,
         providerId: state.providerId,
-        theme: state.theme,
         conversations: state.conversations,
         activeConversationId: state.activeConversationId
       }),
 
       /**
-       * Versiunea 2: conversațiile nu mai au `messages`.
+       * Versiunea 3: conversațiile au din nou `messages`, dar cu formă și rol
+       * noi — arhiva de la F3.1, nu sursa de adevăr din timpul streamului.
        *
-       * Exact cazul pentru care `version` exista de la început. Oricine a
-       * deschis aplicația înainte de F1.4 are în `localStorage` conversații CU
-       * mesaje, în forma veche (`content: string`). Fără migrare, transcrierile
-       * alea ar rămâne acolo pentru totdeauna — invizibile, pentru că nimic nu
-       * le mai citește, dar ocupând spațiu și pretinzând că sunt starea curentă.
+       * Ce poate exista în `localStorage`, pe versiuni:
+       * - v2 (F1.4–F3): conversații FĂRĂ `messages` deloc — a fost șters explicit
+       *   atunci, când mesajele au devenit responsabilitatea exclusivă a lui
+       *   `useChat`.
+       * - v1/nemarcat (dinainte de F1.4): conversații CU `messages`, dar în
+       *   forma veche (`content: string`), incompatibilă cu `UIMessage`
+       *   (`parts`), pe care nimic din interfața actuală n-o mai poate reda.
+       *
+       * În ambele cazuri, singura formă validă de pornit e goală: nu există
+       * cum să reconstruim un `UIMessage[]` corect dintr-o formă pe care n-o
+       * mai citim sau care nu conține mesaje. E exact compromisul asumat deja
+       * la v2 — o migrare de schemă poate pierde conținut vechi, dar NU are
+       * voie să lase aplicația să crape la primul refresh de după update.
        */
-      version: 2,
+      version: 3,
 
       migrate: persisted => {
         const state = persisted as { conversations?: unknown[] } | undefined;
@@ -227,13 +312,11 @@ export const useAppStore = create<AppState>()(
 
         return {
           ...state,
-          // `messages` se aruncă: de acum transcrierea aparține lui `useChat`.
           // Titlurile și ordinea rămân, deci sidebar-ul arată la fel după update.
-          conversations: state.conversations.map(conversation => {
-            const meta = { ...(conversation as Record<string, unknown>) };
-            delete meta.messages;
-            return meta;
-          })
+          conversations: state.conversations.map(conversation => ({
+            ...(conversation as Record<string, unknown>),
+            messages: []
+          }))
         };
       },
 

@@ -1,5 +1,3 @@
-import type { UIMessage } from "ai";
-
 import type { Conversation } from "@/lib/types";
 
 // Conversațiile inventate cu care pornește aplicația.
@@ -12,19 +10,15 @@ import type { Conversation } from "@/lib/types";
 // Conținutul e scris în stilul în care ar răspunde agentul SkillForge: sprijinit
 // pe skill-urile din profil, cu pași concreți. Așa se vede dacă interfața face
 // față unui răspuns lung, nu doar unui „ok".
+//
+// De la F3.1, `messages` face parte din `Conversation` — sunt scrise direct aici,
+// în forma reală a SDK-ului (`parts`, nu `content`), tocmai ca randarea să fie
+// testată pe aceeași structură pe care o produce modelul. Nu mai există un export
+// separat pentru ele (`MOCK_MESSAGES`, dinainte de F3.1): acum că tipul
+// `Conversation` are `messages`, o listă separată ar fi însemnat două locuri care
+// pot ajunge să se contrazică la primul id schimbat.
 
-/**
- * Forma seed-ului: metadatele conversației PLUS mesajele ei.
- *
- * Tipul ăsta e local intenționat. `Conversation` (cel exportat, cel din store)
- * nu mai are `messages` de la F1.4 — mesajele conversației deschise sunt ale lui
- * `useChat`. Aici le ținem împreună doar cât să le putem scrie o singură dată,
- * iar cele două exporturi de mai jos se DERIVĂ din el. Scrise separat, lista și
- * mesajele ar putea ajunge să se contrazică la primul id schimbat.
- */
-type SeedConversation = Conversation & { messages: UIMessage[] };
-
-const SEED: SeedConversation[] = [
+export const MOCK_CONVERSATIONS: Conversation[] = [
   {
     id: "conv-gap-analysis",
     title: "Ce-mi lipsește pentru AI Engineer",
@@ -114,28 +108,6 @@ const SEED: SeedConversation[] = [
     ]
   }
 ];
-
-/** Lista din sidebar: doar metadate, fără mesaje. Asta ajunge în store. */
-export const MOCK_CONVERSATIONS: Conversation[] = SEED.map(({ id, title, createdAt }) => ({
-  id,
-  title,
-  createdAt
-}));
-
-/**
- * Mesajele de pornire ale conversațiilor inventate, pe id.
- *
- * Sunt un SEED, nu o stare: se dau lui `useChat` la deschiderea conversației, ca
- * pornirea aplicației să nu arate trei conversații goale. Din clipa aceea,
- * transcrierea îi aparține hook-ului. Conversațiile create de utilizator nu au
- * seed — pornesc goale.
- *
- * Sunt scrise deja în forma reală a SDK-ului (`parts`, nu `content`), tocmai ca
- * randarea să fie testată pe aceeași structură pe care o produce modelul.
- */
-export const MOCK_MESSAGES: Record<string, UIMessage[]> = Object.fromEntries(
-  SEED.map(conversation => [conversation.id, conversation.messages])
-);
 
 /**
  * Titlul unei conversații noi. Stă aici, lângă restul conținutului inventat,

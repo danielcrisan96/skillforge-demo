@@ -35,15 +35,35 @@ export const metadata: Metadata = {
  *
  * Fără el ar exista un „flash": serverul trimite HTML fără clasa `.dark`,
  * browserul îl desenează alb, iar tema întunecată s-ar aplica abia după ce
- * JavaScript-ul pornește și store-ul se rehidratează. Pe o aplicație folosită
- * pe dark, asta înseamnă un fulger alb la fiecare încărcare.
+ * JavaScript-ul pornește și `ThemeProvider` se montează. Pe o aplicație
+ * folosită pe dark, asta înseamnă un fulger alb la fiecare încărcare.
  *
- * Rulează sincron, înaintea React, și citește exact cheia în care `persist`
- * salvează starea. Totul e în try/catch pentru că `localStorage` poate arunca
- * (navigare privată, cookie-uri blocate) — iar dacă aruncă, aplicația trebuie
- * să pornească pe tema implicită, nu să rămână albă.
+ * Rulează sincron, înaintea React, și citește direct cheia proprie a temei —
+ * `skillforge-theme` (`theme-provider.tsx`), NU cheia store-ului Zustand: de
+ * la pasul unde tema a trecut pe `createContext`, nu mai stă acolo. CAPCANA
+ * exactă a acelui pas: dacă scriptul ar fi rămas pe cheia veche, n-ar mai fi
+ * găsit nimic — și flash-ul alb ar reveni, doar pentru cine are tema
+ * întunecată, doar la prima încărcare de după refactor.
+ *
+ * Totul e în try/catch pentru că `localStorage` poate arunca (navigare
+ * privată, cookie-uri blocate) — iar dacă aruncă, aplicația trebuie să
+ * pornească pe tema sistemului, nu să rămână albă.
  */
-const themeScript = `(function(){try{var raw=localStorage.getItem("skillforge-app");var pref=raw?JSON.parse(raw).state.theme:"system";var dark=pref==="dark"||(pref!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);document.documentElement.style.colorScheme=dark?"dark":"light";}catch(e){}})();`;
+const themeScript = `(function(){try{
+  var pref=localStorage.getItem("skillforge-theme");
+  if(pref!=="light"&&pref!=="dark"&&pref!=="system"){
+    /* Punte TEMPORARĂ: cine avea deja o preferință salvată sub cheia veche a
+       store-ului, dinainte ca tema să treacă pe cheia ei proprie, n-o pierde
+       la acest refresh. De șters cândva, când nu mai are cine să aibă cheia
+       veche fără cea nouă. */
+    var legacyRaw=localStorage.getItem("skillforge-app");
+    var legacy=legacyRaw?JSON.parse(legacyRaw):null;
+    pref=(legacy&&legacy.state&&legacy.state.theme)||"system";
+  }
+  var dark=pref==="dark"||(pref!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark",dark);
+  document.documentElement.style.colorScheme=dark?"dark":"light";
+}catch(e){}})();`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

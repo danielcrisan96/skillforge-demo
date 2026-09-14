@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 
@@ -8,7 +8,6 @@ import { ChatInput } from "@/components/chat/chat-input";
 import { EmptyState } from "@/components/chat/empty-state";
 import { MessageList } from "@/components/chat/message-list";
 import { setActiveMessages } from "@/lib/active-conversation-bridge";
-import { MOCK_MESSAGES } from "@/lib/mock/conversations";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/store/useAppStore";
 import { useHydrated } from "@/store/useHydrated";
@@ -58,7 +57,20 @@ function Conversation({ conversationId }: { conversationId: string }) {
   const [draft, setDraft] = useState("");
 
   const materializeConversation = useAppStore(state => state.materializeConversation);
+  const syncConversationMessages = useAppStore(state => state.syncConversationMessages);
   const isNewConversation = useAppStore(state => state.activeConversationId === null);
+
+  // Mesajele din ARHIVĂ, citite o SINGURĂ dată, la montare — nu printr-un
+  // selector reactiv. E suficient: `Conversation` se remontează pe
+  // `key={conversationId}` (vezi `Chat`, mai sus) de fiecare dată când se
+  // schimbă conversația, deci „citire o dată la montare" ȘI „mesajele corecte
+  // la fiecare comutare" sunt același lucru aici. Un selector reactiv pe
+  // `state.conversations` ar re-randa componenta la orice schimbare din listă
+  // (o redenumire, o altă conversație care se sincronizează) — inutil, pentru
+  // că după prima randare mesajele oricum aparțin lui `useChat`, nu arhivei.
+  const [initialMessages] = useState(
+    () => useAppStore.getState().conversations.find(c => c.id === conversationId)?.messages ?? []
+  );
 
   // Transportul, spus explicit.
   //
@@ -83,10 +95,11 @@ function Conversation({ conversationId }: { conversationId: string }) {
   const { messages, sendMessage, regenerate, status, error, stop } = useChat({
     transport,
 
-    // Mesajele de pornire. Conversațiile inventate au un seed (ca aplicația să
-    // nu arate trei conversații goale la prima deschidere); cele create de
-    // utilizator pornesc de la zero.
-    messages: MOCK_MESSAGES[conversationId] ?? []
+    // Mesajele de pornire vin din arhivă: conversațiile inventate au un seed
+    // (ca aplicația să nu arate trei conversații goale la prima deschidere),
+    // cele reluate au ce s-a sincronizat la finalul ultimului stream, iar cele
+    // create de utilizator pornesc de la zero.
+    messages: initialMessages
   });
 
   // Publică instantaneul curent de mesaje pentru header (vezi
@@ -98,6 +111,39 @@ function Conversation({ conversationId }: { conversationId: string }) {
     setActiveMessages(messages);
     return () => setActiveMessages([]);
   }, [messages]);
+
+  // Referință la ultimele mesaje, actualizată la FIECARE randare (deci și la
+  // fiecare token) — dar o simplă atribuire locală, nu o scriere în store.
+  // Există doar ca efectul de mai jos să poată citi mesajele curente fără să
+  // le pună în lista de dependențe: dacă `messages` ar fi acolo, efectul ar
+  // rula la fiecare bucată de stream, exact ce vrem să evităm.
+  const latestMessagesRef = useRef(messages);
+  latestMessagesRef.current = messages;
+
+  // `status`-ul dinaintea acestei randări, ca să deosebim TRANZIȚIA spre
+  // „ready"/„error" de simplul fapt că starea e „ready" — care e și valoarea
+  // ei implicită, dinainte de orice mesaj trimis. Fără verificarea asta, efectul
+  // de mai jos ar arhiva la FIECARE montare (deci la fiecare comutare de
+  // conversație), nu doar la finalul unui răspuns real.
+  const previousStatusRef = useRef(status);
+
+  // Arhivarea în store — vezi `syncConversationMessages` din `useAppStore.ts`.
+  //
+  // Se întâmplă DOAR la tranziția dinspre „submitted"/„streaming" spre
+  // „ready"/„error", adică o singură dată pe răspuns, nu la fiecare token:
+  // `persist` scrie sincron în `localStorage`, iar o sincronizare per token ar
+  // însemna sute de scrieri ale întregului istoric în câteva secunde. Un
+  // stream întrerupt de un refresh (fără să ajungă la „ready"/„error") nu
+  // apucă să se arhiveze — compromis asumat, vezi comentariul din
+  // `useAppStore.ts`.
+  useEffect(() => {
+    const wasStreaming = previousStatusRef.current === "submitted" || previousStatusRef.current === "streaming";
+    previousStatusRef.current = status;
+
+    if (wasStreaming && (status === "ready" || status === "error")) {
+      syncConversationMessages(conversationId, latestMessagesRef.current);
+    }
+  }, [status, conversationId, syncConversationMessages]);
 
   // Stările se DERIVĂ din `status`, nu se țin în paralel.
   //
