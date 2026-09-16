@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type ComponentType } from "react";
-import { Hourglass, Sparkles, TriangleAlert } from "lucide-react";
+import { Hourglass, LogIn, Sparkles, TriangleAlert } from "lucide-react";
 import type { UIMessage } from "ai";
 
 import { MessageItem } from "@/components/chat/message-item";
@@ -31,6 +31,7 @@ const ERROR_PRESENTATION: Record<
   { title: string; variant: "default" | "destructive"; Icon: ComponentType }
 > = {
   "rate-limit": { title: "Pauză scurtă", variant: "default", Icon: Hourglass },
+  unauthenticated: { title: "Conectează-te ca să întrebi", variant: "default", Icon: LogIn },
   error: { title: "Răspunsul nu a putut fi generat", variant: "destructive", Icon: TriangleAlert }
 };
 

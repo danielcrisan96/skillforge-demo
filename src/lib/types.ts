@@ -170,6 +170,38 @@ export type ProviderAvailability = {
 };
 
 /**
+ * Furnizorii de autentificare (conturi existente, nu parole inventate de noi).
+ *
+ * Valorile NU sunt alese de noi: sunt exact id-urile providerilor din `next-auth`
+ * (`next-auth/providers/github` → „github", `…/google` → „google"). Din ele
+ * librăria compune URL-ul de callback (`/api/auth/callback/<id>`) — cel care se
+ * înregistrează de mână la furnizor — deci un id „mai frumos" ar strica fluxul
+ * fără nicio eroare de compilare.
+ *
+ * Tip închis din același motiv ca `ProviderId`: `AUTH_PROVIDER_FACTORIES` din
+ * `auth.ts` și siglele din `auth-provider-logos.tsx` sunt indexate pe el, deci un
+ * furnizor nou fără implementare sau fără siglă nu compilează.
+ */
+export type AuthProviderId = "github" | "google";
+
+/**
+ * Ce știe SERVERUL despre autentificare și interfața nu are cum să afle singură.
+ *
+ * Calculat o singură dată pe server (`getAuthAvailability`) și coborât în arbore
+ * printr-un context propriu (`auth-config-provider.tsx`). E configurație citită o
+ * dată, nu state: nu se schimbă cât timp pagina e deschisă.
+ *
+ * Ce NU conține, niciodată: valori de chei sau de secrete — doar verdicte DA/NU,
+ * exact ca `ProviderAvailability`.
+ */
+export type AuthAvailability = {
+  /** Există secretul de sesiune și cel puțin un furnizor activ are credențialele lui. */
+  configured: boolean;
+  /** Furnizorii pe care se poate apăsa acum: activi în registru ȘI configurați pe server. */
+  availableProviderIds: AuthProviderId[];
+};
+
+/**
  * Preferința de temă a utilizatorului — ce a ales el, nu ce se vede pe ecran.
  * „system" nu e o temă, ci instrucțiunea „urmează sistemul de operare"; tema
  * efectivă se calculează din ea (vezi `theme-provider.tsx`). Ținem cele două

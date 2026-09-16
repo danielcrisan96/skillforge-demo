@@ -5,8 +5,12 @@
  * „rate-limit" e separat pentru că NU e o defecțiune: e aplicația care se
  * protejează singură. Afișată cu roșu și „nu a putut fi generat", ar părea că s-a
  * stricat ceva — și omul ar apăsa din nou, exact ce limita încearcă să oprească.
+ *
+ * „unauthenticated" e separat din același motiv: fără cont, refuzul e comportamentul
+ * CORECT al serverului, nu o eroare. Omul are nevoie de un pas („conectează-te"),
+ * nu de un triunghi roșu.
  */
-export type ChatErrorKind = "rate-limit" | "error";
+export type ChatErrorKind = "rate-limit" | "unauthenticated" | "error";
 
 export type ChatErrorDescription = {
   kind: ChatErrorKind;
@@ -31,7 +35,7 @@ export type ChatErrorDescription = {
  * întoarce JSON pentru erori e contractul corect, iar dezambalarea e treaba
  * clientului.
  *
- * Tipul se deduce din FORMA corpului (`retryAt` prezent), nu din cod: SDK-ul
+ * Tipul se deduce din FORMA corpului (`retryAt` sau `reason` prezent), nu din cod: SDK-ul
  * nu păstrează statusul HTTP pe eroarea pe care o aruncă, iar ghicitul din text
  * s-ar strica la prima reformulare a mesajului.
  */
@@ -42,8 +46,9 @@ export function describeChatError(error: Error): ChatErrorDescription {
     try {
       const parsed: unknown = JSON.parse(raw);
       if (typeof parsed === "object" && parsed !== null && "error" in parsed) {
-        const { error: message, retryAt } = parsed as { error: unknown; retryAt?: unknown };
+        const { error: message, retryAt, reason } = parsed as { error: unknown; retryAt?: unknown; reason?: unknown };
         if (typeof message === "string" && message.length > 0) {
+          if (reason === "unauthenticated") return { kind: "unauthenticated", message };
           const retryTime = typeof retryAt === "string" ? formatRetryTime(retryAt) : null;
           if (retryTime) {
             return { kind: "rate-limit", message: `${message} Poți trimite din nou de la ora ${retryTime}.` };

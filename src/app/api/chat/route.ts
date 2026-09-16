@@ -7,6 +7,7 @@ import {
   type UIMessage
 } from "ai";
 
+import { authorizePaidRoute } from "@/lib/auth";
 import { buildResponseCacheKey, responseCache, type CachedResponse } from "@/lib/cache";
 import { buildSystemPrompt } from "@/lib/system-prompt";
 import { PROVIDERS, resolveProviderId, type ProviderInfo } from "@/lib/providers";
@@ -19,9 +20,9 @@ import type { MessageUsageMetadata } from "@/lib/types";
 // E singurul loc din aplicație care are voie să vorbească cu providerul, și
 // motivul nu e stilistic. Aici se ating trei lucruri care nu au ce căuta în
 // browser: CHEIA (oricine deschide DevTools ar copia-o), COSTUL (fiecare apel
-// se plătește, deci trebuie să existe un loc unde poate fi limitat) și, mai
-// târziu, LIMITAREA PE UTILIZATOR. Un client care cheamă direct providerul le
-// pierde pe toate trei deodată.
+// se plătește, deci trebuie să existe un loc unde poate fi limitat) și, de la
+// pasul de autentificare, CINE are voie să întrebe. Un client care cheamă direct
+// providerul le pierde pe toate trei deodată.
 //
 // Ce e util de observat: sub `useChat`, în `chat.tsx`, nu e nicio magie. E tot
 // SSE — exact protocolul scris de mână în `api/about/route.ts` la F1.3.
@@ -74,7 +75,37 @@ type ChatRequestBody = {
 };
 
 export async function POST(request: Request) {
-  // Limita de cereri, PRIMA verificare — înainte de a citi corpul, de a construi
+  // SESIUNEA, înaintea oricărui lucru care costă.
+  //
+  // Verificarea stă AICI, pe server, nu în interfață: un buton ascuns nu protejează
+  // nimic, ruta rămâne un URL public care se poate chema direct, cu `curl`. Fără
+  // sesiune, cererea se oprește cu `401` înainte de corp, de prompt, de cache și,
+  // mai ales, de provider. Decizia pentru „autentificare neconfigurată" (deschis în
+  // dezvoltare, ÎNCHIS în producție) e scrisă lângă verificare, în `authorizePaidRoute`.
+  //
+  // Stă înaintea limitei de cereri: o rafală de cereri fără sesiune nu trebuie să
+  // consume din limita celor care au dreptul să întrebe.
+  const access = await authorizePaidRoute();
+  if (!access.allowed) {
+    // `reason` doar la 401: acolo omul poate repara singur, conectându-se. La 503
+    // (producție fără configurare) n-are ce face din interfață — e o eroare obișnuită.
+    const reason = access.status === 401 ? "unauthenticated" : undefined;
+    return Response.json({ error: access.message, reason }, { status: access.status });
+  }
+
+  // Dovada că sesiunea chiar se citește pe server. Linia apare DOAR în terminalul
+  // serverului (în producție, în jurnalele platformei) — în browser nu se vede
+  // nimic, fiindcă verificarea nu trece niciodată pe acolo.
+  //
+  // ⚠️ Se loghează MINIMUL: identificatorul (`github:<id numeric>`), niciodată
+  // emailul, numele sau tokenul de sesiune. Un jurnal e text păstrat de altcineva,
+  // citibil de oricine are acces la proiect și care nu se șterge la cererea
+  // utilizatorului — o dată personală ajunsă acolo a ieșit din controlul aplicației.
+  console.info(
+    `[chat] Cerere de la utilizatorul ${access.userId ?? "anonim (autentificare neconfigurată, dezvoltare)"}`
+  );
+
+  // Limita de cereri, prima verificare de COST — înainte de a citi corpul, de a construi
   // promptul sau de a căuta în cache. Tot ce e după ea costă ceva (CPU, memorie
   // sau bani), iar rostul ei e ca o rafală să nu ajungă la niciuna.
   //

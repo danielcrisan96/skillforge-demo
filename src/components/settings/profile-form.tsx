@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ShieldAlert, Trash2, TriangleAlert } from "lucide-react";
 
+import { AccountEmailField } from "@/components/auth/account-email-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,12 @@ export function ProfileForm() {
           oricând cu butonul de mai jos.
         </AlertDescription>
       </Alert>
+
+      {/* Primul câmp, deasupra celor editabile: spune „cu ce cont ești aici” înainte de
+          „ce vrei să știe modelul despre tine”. Componenta decide singură dacă apare —
+          formularul nu știe nimic despre autentificare și nu primește props (e randat
+          dintr-un registru de secțiuni). */}
+      <AccountEmailField />
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="profile-name">Nume</Label>

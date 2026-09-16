@@ -121,8 +121,18 @@ type AppState = {
    */
   isSettingsOpen: boolean;
 
+  /**
+   * Fereastra de alegere a furnizorului de login e deschisă.
+   *
+   * Aceleași motive ca `isSettingsOpen`: se deschide din sidebar, dar se randează
+   * la nivel de pagină (pe mobil, sidebar-ul e un `Sheet`). NU e informație despre
+   * cont — cine e conectat se citește din sesiune, niciodată de aici.
+   */
+  isSignInOpen: boolean;
+
   setHasHydrated: (value: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setSignInOpen: (open: boolean) => void;
   setProfile: (profile: Profile) => void;
   /**
    * Golește profilul, păstrând doar `userId`.
@@ -176,9 +186,11 @@ export const useAppStore = create<AppState>()(
       hasHydrated: false,
       draftConversationId: createId(),
       isSettingsOpen: false,
+      isSignInOpen: false,
 
       setHasHydrated: value => set({ hasHydrated: value }),
       setSettingsOpen: open => set({ isSettingsOpen: open }),
+      setSignInOpen: open => set({ isSignInOpen: open }),
       setProfile: profile => set({ profile }),
       clearProfile: () =>
         set(state => ({
@@ -260,8 +272,8 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
 
       /**
-       * Ce se salvează. `hasHydrated`, `draftConversationId` și `isSettingsOpen`
-       * descriu momentul curent, nu datele utilizatorului: salvate, aplicația
+       * Ce se salvează. `hasHydrated`, `draftConversationId`, `isSettingsOpen` și
+       * `isSignInOpen` descriu momentul curent, nu datele utilizatorului: salvate, aplicația
        * s-ar redeschide cu fereastra de preferințe deschisă peste conversație și
        * cu un id de schiță rămas de la sesiunea trecută.
        *

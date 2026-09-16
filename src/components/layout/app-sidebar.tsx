@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronUp, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { SidebarAccount } from "@/components/auth/sidebar-account";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,25 +39,13 @@ import { useHydrated } from "@/store/useHydrated";
 // intrare în plus în sidebar ar sugera că mai există și altceva de făcut și ar
 // muta atenția de la conversație, care e produsul.
 
-/** Inițialele pentru avatar. Evită o imagine pe care oricum n-o avem în faza asta. */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  return parts
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 export function AppSidebar() {
   const conversations = useAppStore(state => state.conversations);
   const activeConversationId = useAppStore(state => state.activeConversationId);
-  const profile = useAppStore(state => state.profile);
   const createConversation = useAppStore(state => state.createConversation);
   const selectConversation = useAppStore(state => state.selectConversation);
   const renameConversation = useAppStore(state => state.renameConversation);
   const deleteConversation = useAppStore(state => state.deleteConversation);
-  const setSettingsOpen = useAppStore(state => state.setSettingsOpen);
 
   const { setOpenMobile, isMobile } = useSidebar();
 
@@ -222,33 +210,12 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* JOS: utilizatorul. Click pe rând deschide preferințele — locul unde se
-          caută setările în majoritatea aplicațiilor, deci nu mai e nevoie de o
-          iconiță separată de „settings" în header. */}
+      {/* JOS: utilizatorul. Fără autentificare configurată, rândul e cel de dinainte
+          (numele din profil, click → preferințe); cu ea, contul real sau butonul de
+          conectare. Ramificarea stă în `SidebarAccount`, nu aici — vezi acolo de ce
+          trebuie făcută prin componente separate. */}
       <SidebarFooter className="p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              onClick={() => {
-                setSettingsOpen(true);
-                closeOnMobile();
-              }}
-            >
-              <Avatar className="size-7">
-                {/* Numele vine tot din starea salvată, deci trece prin aceeași
-                    poartă ca lista de conversații. */}
-                <AvatarFallback className="text-xs">{isHydrated ? initialsOf(profile.name) : ""}</AvatarFallback>
-              </Avatar>
-              {isHydrated ? (
-                <span className="flex-1 truncate text-left">{profile.name}</span>
-              ) : (
-                <Skeleton className="h-4 flex-1" />
-              )}
-              <ChevronUp className="size-4 shrink-0" />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarAccount />
       </SidebarFooter>
     </Sidebar>
   );
