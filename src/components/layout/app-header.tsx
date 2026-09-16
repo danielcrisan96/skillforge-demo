@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ConversationCost } from "@/components/layout/conversation-cost";
 import { getActiveMessages } from "@/lib/active-conversation-bridge";
 import { downloadTextFile } from "@/lib/download-file";
 import {
@@ -74,24 +75,30 @@ export function AppHeader() {
           în mijloc. */}
       {activeConversation && <span className="truncate text-sm font-medium">{activeConversation.title}</span>}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Exportă conversația">
-            <Download />
-          </Button>
-        </DropdownMenuTrigger>
+      {/* Un singur grup aliniat la dreapta: costul (doar când există ceva măsurat)
+          stă lipit de export, nu plutește la mijlocul barei. */}
+      <div className="ml-auto flex items-center gap-1">
+        <ConversationCost />
 
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleExport("json")}>
-            <FileJson />
-            Exportă ca JSON
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleExport("md")}>
-            <FileText />
-            Exportă ca Markdown
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label="Exportă conversația">
+              <Download />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleExport("json")}>
+              <FileJson />
+              Exportă ca JSON
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("md")}>
+              <FileText />
+              Exportă ca Markdown
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

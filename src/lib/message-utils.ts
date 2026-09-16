@@ -1,9 +1,12 @@
 import type { UIMessage } from "ai";
 
+import { messageCost, tokensCostUsd } from "@/lib/cost";
 import { messageText } from "@/lib/message-text";
-import type { Profile } from "@/lib/types";
+import { PROVIDERS } from "@/lib/providers";
+import type { MessageUsageMetadata, Profile } from "@/lib/types";
 
-// Serializarea conversației pentru export — JSON și Markdown.
+// Transformări pure peste lista de mesaje: exportul (JSON și Markdown) și, de la
+// F4.2, sumarul de consum și cost al conversației.
 //
 // De ce funcțiile de aici sunt PURE (primesc mesaje + profil, întorc un
 // string, fără `document`, fără store): ca să poată fi verificate ca orice
@@ -114,4 +117,178 @@ export function conversationExportToMarkdown(data: ConversationExport): string {
 export function exportFileName(extension: "json" | "md"): string {
   const isoDate = new Date().toISOString().slice(0, 10);
   return `skillforge-${isoDate}.${extension}`;
+}
+
+// --- Consum și cost (F4.2) ---------------------------------------------------
+//
+// Aici se ADUNĂ, nu se calculează: fiecare cifră de bani vine din `messageCost` /
+// `tokensCostUsd` din `src/lib/cost.ts`. Afișarea per mesaj și totalul pe
+// conversație trec prin exact aceleași funcții, deci nu se pot despărți.
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * Metadatele de consum ale unui mesaj, validate — sau `null` dacă mesajul nu le are.
+ *
+ * `metadata` e `unknown` și trebuie tratat ca atare: vine din `localStorage`,
+ * unde pot sta mesaje dinainte de F4.2 (fără metadate deloc) sau o formă
+ * modificată de mână. O verificare aici înseamnă că restul aplicației lucrează
+ * cu o formă sigură; fără ea, prima valoare ciudată ar ajunge ca `NaN` pe ecran.
+ *
+ * Un mesaj fără metadate e „nemăsurat", nu „gratuit" — interfața nu-i afișează
+ * niciun cost, iar totalul îl numără separat.
+ */
+export function messageUsage(message: UIMessage): MessageUsageMetadata | null {
+  if (message.role !== "assistant") return null;
+  const raw = message.metadata;
+  if (typeof raw !== "object" || raw === null) return null;
+
+  const { providerId, modelId, pricing, usage, source } = raw as Record<string, unknown>;
+  if (typeof providerId !== "string" || !(providerId in PROVIDERS)) return null;
+  if (typeof modelId !== "string") return null;
+  if (source !== "model" && source !== "cache") return null;
+  if (typeof pricing !== "object" || pricing === null) return null;
+  if (typeof usage !== "object" || usage === null) return null;
+
+  const { inputPerMillionUsd, outputPerMillionUsd, verifiedAt } = pricing as Record<string, unknown>;
+  if (!isNonNegativeNumber(inputPerMillionUsd) || !isNonNegativeNumber(outputPerMillionUsd)) return null;
+
+  const { inputTokens, outputTokens } = usage as Record<string, unknown>;
+
+  return {
+    providerId: providerId as MessageUsageMetadata["providerId"],
+    modelId,
+    pricing: {
+      inputPerMillionUsd,
+      outputPerMillionUsd,
+      verifiedAt: typeof verifiedAt === "string" ? verifiedAt : "—"
+    },
+    // O valoare lipsă sau invalidă devine `undefined` („necunoscut"), nu 0.
+    usage: {
+      inputTokens: isNonNegativeNumber(inputTokens) ? inputTokens : undefined,
+      outputTokens: isNonNegativeNumber(outputTokens) ? outputTokens : undefined
+    },
+    source
+  };
+}
+
+export type MessageUsageDetails = {
+  metadata: MessageUsageMetadata;
+  /**
+   * Câți din tokenii de intrare ai acestui răspuns erau context RETRIMIS — system
+   * prompt-ul plus tot istoricul de dinainte de întrebarea curentă.
+   *
+   * Nu se estimează: se DEDUCE din cifrele raportate de provider. API-ul e fără
+   * stare, deci intrarea răspunsului anterior (system prompt + istoricul de atunci)
+   * plus ieșirea lui (răspunsul) sunt exact ce se retrimite acum, înaintea
+   * întrebării noi. Restul intrării e partea nouă.
+   *
+   * `undefined` când deducția nu e sigură: răspunsul anterior e nemăsurat, are
+   * tokeni lipsă sau a fost generat de alt model — alt tokenizer numără același
+   * text altfel, iar scăderea ar da o cifră fără sens. La primul răspuns din
+   * conversație e 0: nu există istoric (system prompt-ul e atunci „nou").
+   */
+  resentInputTokens: number | undefined;
+};
+
+/**
+ * Detaliile de consum pentru fiecare mesaj, aliniate cu lista (`null` unde nu
+ * există — mesajele utilizatorului, răspunsurile nemăsurate).
+ *
+ * O singură trecere peste listă, ca să nu caute înapoi „răspunsul anterior"
+ * pentru fiecare mesaj în parte.
+ */
+export function conversationUsageDetails(messages: UIMessage[]): (MessageUsageDetails | null)[] {
+  let previous: { metadata: MessageUsageMetadata | null } | null = null;
+
+  return messages.map(message => {
+    if (message.role !== "assistant") return null;
+
+    const metadata = messageUsage(message);
+    const resentInputTokens = metadata ? resentTokens(metadata, previous) : undefined;
+    previous = { metadata };
+
+    return metadata ? { metadata, resentInputTokens } : null;
+  });
+}
+
+function resentTokens(
+  current: MessageUsageMetadata,
+  previous: { metadata: MessageUsageMetadata | null } | null
+): number | undefined {
+  if (previous === null) return 0;
+
+  const prev = previous.metadata;
+  if (!prev || prev.providerId !== current.providerId || prev.modelId !== current.modelId) return undefined;
+  if (prev.usage.inputTokens === undefined || prev.usage.outputTokens === undefined) return undefined;
+  if (current.usage.inputTokens === undefined) return undefined;
+
+  // Plafonat la intrarea curentă: providerul adaugă câțiva tokeni de formatare pe
+  // mesaj, iar după o editare istoricul poate fi mai scurt decât data trecută.
+  // Un „retrimis" mai mare decât toată intrarea n-ar avea sens pe ecran.
+  return Math.min(prev.usage.inputTokens + prev.usage.outputTokens, current.usage.inputTokens);
+}
+
+export type ConversationCostSummary = {
+  /** Suma costurilor CUNOSCUTE. */
+  totalUsd: number;
+  /** Din `totalUsd`, cât s-a plătit pe context retrimis (system prompt + istoric). */
+  resentUsd: number;
+  /**
+   * `false` dacă, pentru măcar un răspuns plătit, partea retrimisă nu s-a putut
+   * deduce (vezi `resentInputTokens`). Atunci `resentUsd` e un minim — iar un
+   * procent afișat fără nota asta ar subestima exact lucrul pe care vrem să-l vedem.
+   */
+  resentComplete: boolean;
+  /** Răspunsuri cu cost cunoscut, venite de la model. */
+  paidCount: number;
+  /** Răspunsuri redate din cache — gratuite. */
+  cachedCount: number;
+  /**
+   * Răspunsuri fără cost cunoscut: dinainte de F4.2, cu tokeni lipsă de la
+   * provider, sau oprite înainte de final. Dacă e > 0, `totalUsd` e un minim, nu
+   * un total — și interfața trebuie să spună asta.
+   */
+  unknownCount: number;
+};
+
+export function conversationCostSummary(messages: UIMessage[]): ConversationCostSummary {
+  const summary: ConversationCostSummary = {
+    totalUsd: 0,
+    resentUsd: 0,
+    resentComplete: true,
+    paidCount: 0,
+    cachedCount: 0,
+    unknownCount: 0
+  };
+
+  conversationUsageDetails(messages).forEach((details, index) => {
+    if (messages[index].role !== "assistant") return;
+    if (!details) {
+      summary.unknownCount += 1;
+      return;
+    }
+
+    const { metadata, resentInputTokens } = details;
+    if (metadata.source === "cache") {
+      summary.cachedCount += 1;
+      return;
+    }
+
+    const cost = messageCost(metadata);
+    if (cost.totalUsd === undefined) {
+      summary.unknownCount += 1;
+      return;
+    }
+
+    summary.paidCount += 1;
+    summary.totalUsd += cost.totalUsd;
+    const resentUsd = tokensCostUsd(resentInputTokens, metadata.pricing.inputPerMillionUsd);
+    if (resentUsd === undefined) summary.resentComplete = false;
+    else summary.resentUsd += resentUsd;
+  });
+
+  return summary;
 }

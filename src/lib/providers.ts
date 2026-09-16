@@ -1,4 +1,4 @@
-import type { ProviderId } from "@/lib/types";
+import type { ModelPricing, ProviderId } from "@/lib/types";
 
 // Registrul providerilor de model. SINGURA listă de providere din aplicație.
 //
@@ -45,6 +45,22 @@ export type ProviderInfo = {
    * `process.env` — vezi avertismentul din capul fișierului.
    */
   apiKeyEnvVar: string;
+  /**
+   * Prețul modelului de mai sus (`modelId`), cu data verificării.
+   *
+   * Stă AICI, lângă `modelId`, și nu într-un tabel separat, din același motiv ca
+   * restul registrului: prețul aparține modelului. Într-un fișier separat, cineva
+   * ar schimba `modelId` și ar uita prețul — iar aplicația ar afișa liniștită
+   * costul vechiului model pentru răspunsurile noului model.
+   *
+   * Cifrele se citesc din pagina oficială de prețuri a providerului, niciodată
+   * din memorie. Aceleași cifre, cu aceeași dată, stau în `docs/<provider>/README.md`
+   * la „Cost & limite" — când se schimbă una, se schimbă amândouă.
+   *
+   * E informație publică (e pe site-ul providerului), deci nu e o problemă că
+   * fișierul ajunge în browser.
+   */
+  pricing: ModelPricing;
 };
 
 /**
@@ -60,7 +76,10 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     label: "Anthropic",
     modelId: "claude-haiku-4-5",
     modelLabel: "Claude Haiku 4.5",
-    apiKeyEnvVar: "ANTHROPIC_API_KEY"
+    apiKeyEnvVar: "ANTHROPIC_API_KEY",
+    // platform.claude.com/docs/en/about-claude/pricing — „Base input tokens" și
+    // „Output tokens" pentru Claude Haiku 4.5.
+    pricing: { inputPerMillionUsd: 1, outputPerMillionUsd: 5, verifiedAt: "2026-09-16" }
   },
 
   openai: {
@@ -72,7 +91,12 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     // lui Haiku de mai sus, ca cele două opțiuni să fie comparabile la preț.
     modelId: "gpt-5.6-luna",
     modelLabel: "GPT-5.6 Luna",
-    apiKeyEnvVar: "OPENAI_API_KEY"
+    apiKeyEnvVar: "OPENAI_API_KEY",
+    // developers.openai.com/api/docs/pricing — tier Standard, context scurt.
+    // Peste pragul de context lung, OpenAI taxează dublu la intrare ($0,40) și
+    // mai mult la ieșire ($1,80); conversațiile din SkillForge nu ajung acolo,
+    // dar dacă ar ajunge, costul afișat ar fi SUB cel real — vezi docs/openai.
+    pricing: { inputPerMillionUsd: 0.2, outputPerMillionUsd: 1.2, verifiedAt: "2026-09-16" }
   }
 };
 

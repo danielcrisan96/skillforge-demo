@@ -25,7 +25,8 @@ If you find yourself editing the composer or the preferences list to make a prov
 
 3. **Add the type, then the registry entry.**
    - `ProviderId` in [`src/lib/types.ts`](../../../src/lib/types.ts) — the union is closed on purpose.
-   - An entry in `PROVIDERS` in [`src/lib/providers.ts`](../../../src/lib/providers.ts): `id`, `label`, `modelId`, `modelLabel`, `apiKeyEnvVar`.
+   - An entry in `PROVIDERS` in [`src/lib/providers.ts`](../../../src/lib/providers.ts): `id`, `label`, `modelId`, `modelLabel`, `apiKeyEnvVar`, `pricing`.
+   - `pricing` is input/output USD per million tokens **plus `verifiedAt`**, read from the provider's official pricing page on the day you add it — the same figures and date go into the provider doc's "Cost & limite" (step 6). Without it the compiler stops you; with a guessed number, every cost shown in the app is silently wrong.
 
    Order matters: the registry's order is the order shown in the UI, and **Anthropic stays first and default** — the course runs on its credits. Put the new provider after it.
 

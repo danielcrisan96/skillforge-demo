@@ -1,21 +1,38 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Sparkles, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, type ComponentType } from "react";
+import { Hourglass, Sparkles, TriangleAlert } from "lucide-react";
 import type { UIMessage } from "ai";
 
 import { MessageItem } from "@/components/chat/message-item";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { chatErrorMessage } from "@/lib/chat-error";
+import { describeChatError, type ChatErrorKind } from "@/lib/chat-error";
 import { messageText } from "@/lib/message-text";
+import { conversationUsageDetails } from "@/lib/message-utils";
 
 // Lista de mesaje, plus stările prin care trece până să aibă ce afișa.
 //
 // Stările astea au fost construite în F1.2, pe date inventate, exact ca acum să
 // nu fie nevoie de ele: „scrie…", eroarea și scheletul de încărcare erau deja la
 // locul lor când textul a început să curgă cu adevărat.
+
+/**
+ * Aspectul unei erori, pe tip — registru, nu `kind === "rate-limit" ? … : …` repetat
+ * pe titlu, culoare și iconiță.
+ *
+ * Limita de cereri NU e roșie și nu spune „nu a putut fi generat": e aplicația
+ * care se protejează, nu o defecțiune, iar textul spune de la ce oră se poate
+ * trimite din nou.
+ */
+const ERROR_PRESENTATION: Record<
+  ChatErrorKind,
+  { title: string; variant: "default" | "destructive"; Icon: ComponentType }
+> = {
+  "rate-limit": { title: "Pauză scurtă", variant: "default", Icon: Hourglass },
+  error: { title: "Răspunsul nu a putut fi generat", variant: "destructive", Icon: TriangleAlert }
+};
 
 type MessageListProps = {
   messages: UIMessage[];
@@ -56,6 +73,13 @@ export function MessageList({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, lastMessageLength, isWaiting]);
 
+  // Consumul fiecărui mesaj, calculat O dată pe listă, nu în fiecare `MessageItem`:
+  // partea „retrimisă" a unui răspuns depinde de răspunsul DINAINTEA lui, deci un
+  // mesaj singur n-are de unde s-o afle. `useMemo` pe `messages`: în streaming
+  // lista se schimbă la fiecare token, dar o trecere peste câteva zeci de mesaje e
+  // neglijabilă — memo-ul evită doar recalculul la randări fără mesaje noi.
+  const usageDetails = useMemo(() => conversationUsageDetails(messages), [messages]);
+
   if (isLoading) {
     // Schelet cu forma reală a conținutului, nu un cerc care se învârte: așa
     // saltul de la starea de încărcare la conținut e mai mic, iar pagina nu
@@ -94,6 +118,7 @@ export function MessageList({
           // fără confirmare. Pe unul mai vechi, reluarea taie și tot ce a
           // urmat, deci MessageItem cere confirmare.
           discardCount={messages.length - 1 - index}
+          usage={usageDetails[index]}
         />
       ))}
 
@@ -117,21 +142,28 @@ export function MessageList({
         </div>
       )}
 
-      {error && (
-        // Componenta de alertă exista deja în aplicație, din F1.2. Textul vine
-        // de la `onError` din rută — tradus acolo în ceva citibil, ca aici să nu
-        // ajungă mesajul brut al SDK-ului. `chatErrorMessage` se ocupă de cazul
-        // în care eroarea a venit ca răspuns 400, nu prin stream.
-        <Alert variant="destructive">
-          <TriangleAlert />
-          <AlertTitle>Răspunsul nu a putut fi generat</AlertTitle>
-          <AlertDescription>{chatErrorMessage(error)}</AlertDescription>
-        </Alert>
-      )}
+      {error && <ChatErrorAlert error={error} />}
 
       {/* Ancoră goală pentru derulare. Un element dedicat e mai sigur decât
           calculul înălțimii containerului, care se schimbă la fiecare mesaj. */}
       <div ref={bottomRef} />
     </div>
+  );
+}
+
+function ChatErrorAlert({ error }: { error: Error }) {
+  // Componenta de alertă exista deja în aplicație, din F1.2. Textul vine de la
+  // `onError` din rută — tradus acolo în ceva citibil, ca aici să nu ajungă
+  // mesajul brut al SDK-ului. `describeChatError` se ocupă de cazul în care
+  // eroarea a venit ca răspuns HTTP (400, 429), nu prin stream.
+  const { kind, message } = describeChatError(error);
+  const { title, variant, Icon } = ERROR_PRESENTATION[kind];
+
+  return (
+    <Alert variant={variant}>
+      <Icon />
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   );
 }

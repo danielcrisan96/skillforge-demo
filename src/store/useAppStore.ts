@@ -303,6 +303,14 @@ export const useAppStore = create<AppState>()(
        * mai citim sau care nu conține mesaje. E exact compromisul asumat deja
        * la v2 — o migrare de schemă poate pierde conținut vechi, dar NU are
        * voie să lase aplicația să crape la primul refresh de după update.
+       *
+       * De ce F4.2 NU a crescut versiunea, deși mesajele arhivate au acum
+       * `metadata` (consumul și costul): câmpul exista deja, opțional, în tipul
+       * `UIMessage`, deci forma salvată nu s-a schimbat — doar a început să fie
+       * folosită. Un mesaj vechi, fără metadate, rămâne perfect valid, iar
+       * `messageUsage` din `message-utils.ts` validează explicit ce citește și îl
+       * tratează ca „nemăsurat". O migrare ar fi avut ce să facă doar dacă am fi
+       * vrut să inventăm consum pentru mesaje vechi — exact ce nu vrem.
        */
       version: 3,
 

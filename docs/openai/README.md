@@ -111,40 +111,80 @@ Ce nu poate face agentul — se face o singură dată, de mână:
 
 - **Model de tarifare:** per token, separat la intrare și la ieșire. Nu există
   abonament: plătești ce consumi.
-- **Modelul folosit:** `gpt-5.6-luna` — vezi `modelId` în
-  [`src/lib/providers.ts`](../../src/lib/providers.ts), singurul loc unde e
-  scris. E ales ca echivalent de rol pentru Claude Haiku 4.5 de pe cealaltă
-  parte: tierul optimizat pentru volum și cost, ca să se compare două opțiuni
-  comparabile ca preț, nu un model mic cu unul mare.
+- **Modelul folosit:** `gpt-5.6-luna` — vezi intrarea `openai` din
+  [`src/lib/providers.ts`](../../src/lib/providers.ts), singurul loc unde sunt
+  scrise id-ul și prețul lui. E ales ca echivalent de rol pentru Claude Haiku 4.5
+  de pe cealaltă parte: tierul optimizat pentru volum și cost, ca să se compare două
+  opțiuni comparabile ca preț, nu un model mic cu unul mare.
 
-| Model           | Intrare / 1M tokeni | Ieșire / 1M tokeni |
-| --------------- | ------------------- | ------------------ |
-| `gpt-5.6-luna`  | $0,20               | $1,20              |
-| `gpt-5.6-terra` | $2,00               | $12,00             |
-| `gpt-5.6-sol`   | $4,00               | $20,00             |
+**Prețul care intră în registru** — aceleași cifre, cu aceeași dată, ca în
+`pricing` din `src/lib/providers.ts`. Când se schimbă una, se schimbă amândouă,
+în același commit:
 
-**Pentru a schimba modelul:** editezi `modelId` și `modelLabel` din intrarea
-`openai` a registrului. E o singură linie fiecare, iar interfața se actualizează
-singură — eticheta de lângă composer vine din același loc, deci nu poate minți
-despre cine răspunde.
+| Model (folosit) | `modelId`      | Intrare / 1M tokeni | Ieșire / 1M tokeni | Verificat la |
+| --------------- | -------------- | ------------------- | ------------------ | ------------ |
+| GPT-5.6 Luna    | `gpt-5.6-luna` | $0,20               | $1,20              | 2026-09-16   |
 
+Tier Standard, context scurt. Pagina mai listează, pentru același model: intrare din
+cache $0,02, iar peste pragul de context lung $0,40 intrare / $1,80 ieșire.
+Registrul ține doar prețul de bază, deci pe conversații foarte lungi costul afișat
+de aplicație e o **aproximare**: OpenAI cachează automat prefixele repetate (mai
+ieftin decât afișăm), dar peste pragul de context lung taxează mai scump (mai scump
+decât afișăm). Pentru conversațiile obișnuite din SkillForge, cifra afișată e cea
+de pe factură.
+
+Pentru comparație (nefolosite în aplicație): `gpt-5.6-terra` $2 / $12,
+`gpt-5.6-sol` $4 / $20 — verificate la 2026-09-14.
+
+**Pentru a schimba modelul:** editezi `modelId`, `modelLabel` și `pricing` din
+intrarea `openai` a registrului — toate trei. Eticheta de lângă composer și costul
+de sub răspuns vin din același loc, deci nu pot minți despre cine a răspuns și cât
+a costat.
+
+- **Ce vede aplicația din cost (F4.2):** sub fiecare răspuns — tokenii raportați de
+  OpenAI și costul calculat cu prețul de mai sus; în bara de sus — totalul
+  conversației și cât din el e context retrimis. Un răspuns oprit cu „Stop" se
+  plătește fără să aibă consum raportat.
 - **Ce umflă factura exact aici:** ca la orice provider, API-ul e **fără stare**,
-  deci la fiecare mesaj se retrimite **toată conversația** plus system prompt-ul.
-  Al zecelea mesaj costă la intrare cât primele nouă la un loc. Comutarea de
+  deci la fiecare mesaj se retrimite **toată conversația** plus system prompt-ul —
+  costul de intrare crește cu pătratul lungimii conversației. Comutarea de
   provider nu resetează nimic: istoricul plecat spre OpenAI e același istoric,
-  facturat a doua oară, la tariful lui.
+  facturat a doua oară, la tariful lui. Aplicația nu deduce „contextul retrimis"
+  peste o comutare (alt tokenizer numără altfel) și afișează „—" acolo.
+- **Limitele de cereri care ne pot afecta** (`gpt-5.6-luna`, pe tier de utilizare;
+  tier-ul crește cu suma plătită):
+
+  | Tier | Condiție       | Cereri / minut | Tokeni / minut |
+  | ---- | -------------- | -------------- | -------------- |
+  | 1    | $5 plătiți     | 500            | 500.000        |
+  | 2    | $50 plătiți    | 5.000          | 2.000.000      |
+  | 3    | $100 plătiți   | 5.000          | 4.000.000      |
+  | 4    | $250 plătiți   | 10.000         | 10.000.000     |
+  | 5    | $1.000 plătiți | 30.000         | 180.000.000    |
+
+  Peste limită, API-ul răspunde `429` (cu antetele `x-ratelimit-*` și, uneori,
+  `Retry-After`); tot `429` vine și la credit epuizat. În interfață: „Ai atins
+  limita de cereri sau creditul contului OpenAI".
+
+  Pentru un singur utilizator, nici tier-ul 1 nu e cel care ne oprește: **limita
+  aplicației** (10 cereri pe minut, `src/lib/rate-limit.ts`) intervine cu mult
+  înainte și are propriul mesaj („Pauză scurtă").
+
 - **Ce e gratuit și până unde:** nimic garantat pentru conturi noi — se pornește
-  de la creditul cumpărat. Limitele de cereri pe minut cresc odată cu suma
-  cheltuită (tier-urile de utilizare).
+  de la creditul cumpărat.
 - **Pagina oficială de prețuri:** <https://developers.openai.com/api/docs/pricing>
-- **Verificat la data:** 2026-09-14
+- **Pagina oficială de limite:** <https://developers.openai.com/api/docs/models/gpt-5.6-luna>
+  (limitele per model) și <https://developers.openai.com/api/docs/guides/rate-limits>
+  (tier-urile)
+- **Verificat la data:** 2026-09-16
 - **Unde se vede consumul curent:** platform.openai.com → **Usage** (tokeni și
   cost, pe zi, pe model și pe proiect) și **Settings → Billing** pentru creditul
-  rămas.
+  rămas. Tier-ul curent: **Settings → Limits**.
 
-> Prețurile și numele de modele se schimbă. Id-ul de model se ia **din
+> Prețurile și numele de modele se schimbă. Id-ul de model și prețul se iau **din
 > documentația curentă**, niciodată din memorie sau prin analogie: un id care
-> sună plauzibil dar nu există dă un 404 care arată exact ca un bug de cod.
+> sună plauzibil dar nu există dă un 404 care arată exact ca un bug de cod, iar un
+> preț vechi dă un cost afișat greșit, fără nicio eroare.
 
 ## Verificare
 
@@ -181,6 +221,8 @@ despre cine răspunde.
 | Credit epuizat / prea multe cereri    | „Ai atins limita de cereri sau creditul contului OpenAI. Încearcă din nou peste puțin."                 |
 | `modelId` greșit                      | „Modelul gpt-5.6-luna nu există sau contul OpenAI nu are acces la el."                                  |
 | Merge local, nu merge pe link         | Variabila lipsește din Vercel, sau a fost adăugată fără Redeploy — vezi Pașii manuali                   |
+| Aceeași întrebare trimisă de două ori | A doua apare „din cache · … · 0,00 USD" — fără apel către OpenAI, fără cost                             |
+| Prea multe cereri într-un minut       | Alertă „Pauză scurtă" cu ora de la care se poate trimite din nou (limita aplicației, nu a providerului) |
 
 Mesajele astea sunt traduse în `onError` din
 [`src/app/api/chat/route.ts`](../../src/app/api/chat/route.ts) și sunt compuse

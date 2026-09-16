@@ -3,7 +3,7 @@
 > **Acest fișier este sursa de adevăr pentru ce construim.**
 > Orice decizie luată pe parcurs se scrie aici, nu doar în conversație. Vezi [Cum se modifică acest document](#11-cum-se-modifică-acest-document).
 
-Ultima actualizare: 2026-09-14
+Ultima actualizare: 2026-09-16 · Faza curentă: **F3 — Memorie între sesiuni** (reluată după încheierea F4, cu F4.2)
 
 ---
 
@@ -97,6 +97,9 @@ Aceste decizii sunt luate și nu se redeschid la fiecare modul. Dacă una se sch
 | D-22 | **Registrul din `src/lib/providers.ts` e singura listă de provideri, iar `getModel` din `src/lib/providers.server.ts` e singurul loc care instanțiază un SDK** (F4.1)              | Testul unei abstracții nu e cât de elegant arată, ci câte fișiere trebuie atinse pentru a doua implementare. Cu registrul, un provider nou = o intrare + o ramură de fabrică, niciuna într-un component; cu `if`-uri, ar fi fost trei locuri (composer, preferințe, rută) care se desincronizează la al treilea provider. `MODEL_FACTORIES` e un `Record<ProviderId, …>` tocmai ca ramura să fie CERUTĂ de compilator: un `switch` cu `default` ar fi lăsat să existe o opțiune care arată bine în interfață și crapă la prima trimitere. Corolar de securitate: `providers.ts` e importat de composer, deci **ajunge în browser** — acolo nu intră nicio cheie și niciun `process.env`, doar NUMELE variabilei. Tot ce atinge chei stă în `providers.server.ts`, importat exclusiv din Route Handlere.                                                                                                                       |
 | D-23 | **„Configurat" e o proprietate a serverului**; disponibilitatea ajunge în interfață ca date de afișat, iar un provider fără cheie se vede **dezactivat, cu motivul** (F4.1)        | Cheile stau în mediul serverului, iar browserul n-are cum să le vadă — și nici nu trebuie. Clientul nu atinge `process.env` nici măcar pentru un `Boolean(...)`: primește de la `GET /api/providers` un verdict plus un motiv gata de citit, niciodată o valoare de cheie, nici trunchiată (o cheie parțială e tot cheie). Tentația `NEXT_PUBLIC_OPENAI_CONFIGURED` e greșită de două ori: ar fi a doua sursă de adevăr, de ținut în sinc cu cheia reală, și ar normaliza obiceiul de a pune lucruri despre chei în variabile publice. Opțiunea rămâne **în listă**, dezactivată: ștearsă, ar fi lăsat întrebarea „de ce nu văd OpenAI?" fără răspuns nicăieri în interfață.                                                                                                                                                                                                                                                  |
 | D-24 | **Comutatorul de provider stă lângă composer, nu în preferințe** (F4.1)                                                                                                            | E o decizie de MOMENT („vreau altă părere la întrebarea asta"), nu o setare schimbată o dată pe lună — iar un control se pune unde se ia decizia. Alegerea se aplică **mesajului următor**, nu retroactiv conversației, și se citește din store la fiecare trimitere, nu la montarea componentei (aceeași capcană ca la profil, F2: citită la montare, interfața ar fi arătat un provider și ar fi trimis la altul). În preferințe a rămas doar ce chiar e configurare: care provider are cheie și care nu. Contrazice aparent D-15 („tema se schimbă doar din preferințe"), dar exact pe criteriul din D-15: tema e o preferință rară, providerul e o acțiune repetată.                                                                                                                                                                                                                                                      |
+| D-25 | **Costul se calculează într-un singur loc (`src/lib/cost.ts`), din consumul raportat de provider și din prețurile din registru, care au data verificării** (F4.2)                  | Costul apare în două locuri (lângă mesaj și ca total); cu două formule, prima modificare de preț ar ajunge într-una singură. Tokenii nu se estimează — vin din `usage`, raportat exact de provider; o valoare lipsă e „necunoscut” (—), nu 0, care ar părea gratuit. Pe mesaj se salvează ingredientele costului (tokeni, provider, model, prețul de ATUNCI), nu cifra finală: o conversație în care s-a comutat providerul se calculează corect, iar o actualizare de preț nu rescrie retroactiv trecutul. **Corectat față de F4.1**, unde scria că tarifele nu se scriu în cod: se scriu, în registru, cu data verificării, iar `docs/<provider>/README.md` are aceleași cifre.                                                                                                                                                                                                                                             |
+| D-26 | **Cache de răspunsuri în memoria serverului, accesat doar prin `src/lib/cache.ts` (`get`/`set`), cu cheia = provider + model + system prompt + hash pe mesaje** (F4.2)             | Cheia conține tot ce influențează răspunsul, inclusiv system prompt-ul — deci profilul. Consecință asumată: doi utilizatori nu împart niciodată un răspuns, rata de nimeriri e mică, iar cache-ul NU e o reducere de cost, ci o protecție la retrimiteri identice. Un cache care ar ignora profilul ar servi răspunsul unui om altuia — scurgere de date. „Mai încearcă” ocolește cache-ul (altfel butonul n-ar face nimic). Interfața asincronă, cu două funcții, permite mutarea pe un cache extern fără a atinge ruta; atunci devine integrare, cu doc propriu.                                                                                                                                                                                                                                                                                                                                                            |
+| D-27 | **Limită de cereri pe minut în ruta de chat, în memorie, cu `429` + momentul reîncercării** (F4.2)                                                                                 | Oprește butonul ținut apăsat și bucla scăpată de sub control înainte să golească creditul. E protecție de bun-simț, NU măsură de securitate: pe mai multe instanțe fiecare numără separat, la repornire se resetează, iar IP-ul se poate varia. O limită reală cere un depozit partajat (Redis/KV).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## 7. Cerințe pe faze
 
@@ -285,11 +288,11 @@ Livrează:
 
 ---
 
-### F3 — Memorie între sesiuni ⏸ _deschisă — F3.1 și F3.2 livrate (2026-09-14)_
+### F3 — Memorie între sesiuni ⏸ _deschisă — F3.1 și F3.2 livrate (2026-09-14)_ ← _faza curentă_
 
 **Scop:** progresul se acumulează; UC-3 devine posibil.
 
-> **Rămâne deschisă intenționat.** Pașii livrați (F3.1, F3.2) au rezolvat istoricul și afișarea lui; faptele reținute și strategia pentru limita de context **nu** au fost începute. F4 a intrat înaintea lor pentru că al doilea provider e ceea ce validează D-4 — o interfață „schimbabilă" scrisă cu un singur provider e o presupunere, nu o abstracție. Ordinea nu e o renunțare: F3 se reia după pasul de cost din F4.
+> **Rămâne deschisă intenționat.** Pașii livrați (F3.1, F3.2) au rezolvat istoricul și afișarea lui; faptele reținute și strategia pentru limita de context **nu** au fost începute. F4 a intrat înaintea lor pentru că al doilea provider e ceea ce validează D-4 — o interfață „schimbabilă" scrisă cu un singur provider e o presupunere, nu o abstracție. Ordinea nu e o renunțare: F3 se reia după pasul de cost din F4 — **reluată de la 2026-09-16**, după F4.2. Strategia pentru limita de context are acum pe ce se sprijini: ponderea contextului retrimis se vede, măsurată, în header.
 
 Livrează:
 
@@ -348,7 +351,7 @@ Livrat:
 
 ---
 
-### F4 — Al doilea provider și comparație ⚠️ _livrată parțial (2026-09-14)_ ← _faza curentă_
+### F4 — Al doilea provider și comparație ✅ _încheiată (2026-09-16)_
 
 **Scop:** D-4 devine real și verificabil.
 
@@ -356,12 +359,12 @@ Livrează:
 
 - ✅ interfața comună de provider, cu Anthropic și OpenAI ca implementări — **F4.1**
 - ✅ comutare de provider/model din interfață — **F4.1**
-- ⬜ afișarea consumului: tokeni de intrare/ieșire și cost estimat per răspuns — **rămâne pentru F4.2**
+- ✅ afișarea consumului: tokeni de intrare/ieșire și cost per răspuns, plus totalul pe conversație — **F4.2**
 - ✅ `docs/openai/README.md` — pașii manuali pentru a doua cheie — **F4.1**
 
 **Gata când:** aceeași întrebare poate fi trimisă la ambii provideri, iar diferența de răspuns și de cost e vizibilă.
 
-> **Faza NU e închisă.** Prima jumătate a criteriului e verificată (aceeași întrebare, doi provideri, două răspunsuri); a doua — diferența de **cost** — nu există încă nicăieri în aplicație. Se scrie explicit aici ca faza să nu pară terminată la o citire rapidă a bifelor.
+> **Criteriul e verificat în ambele jumătăți.** Aceeași întrebare pe cei doi provideri dă două răspunsuri (F4.1) și, de la F4.2, două costuri vizibile lângă răspuns: aceeași întrebare scurtă a raportat 399 → 57 tokeni pe Claude Haiku 4.5 și 366 → 22 pe GPT-5.6 Luna, la prețuri de 5× diferență pe intrare.
 
 #### F4.1 — Comutatorul și abstracția din spatele lui ✅ _livrat (2026-09-14)_
 
@@ -390,9 +393,47 @@ A fixat deciziile **D-22**, **D-23** și **D-24** — vezi §6.
 
 **De discutat la curs, pe cod:** de ce un registru bate un lanț de `if`-uri, și cum ar arăta același cod la patru provideri (trei fișiere de editat, trei locuri de uitat); ce înseamnă că fiecare provider are propriul pachet de SDK, scris de altă echipă peste alt API HTTP, dar interfața de apel rămâne aceeași — `streamText` nu știe cu cine vorbește; și de ce „configurat" e o proprietate a **serverului**, nu a browserului, plus de ce tentația `NEXT_PUBLIC_OPENAI_CONFIGURED` e greșită de două ori (a doua sursă de adevăr, și obiceiul de a pune lucruri despre chei în variabile publice).
 
-#### F4.2 — Consum și cost per răspuns ⬜ _neînceput_
+#### F4.2 — Consum, cost și plase de siguranță ✅ _livrat (2026-09-16)_
 
-Ce a rămas din criteriul fazei: tokenii de intrare/ieșire per răspuns, costul estimat din ei și comparația vizibilă între provideri. Tarifele nu se scriu în cod, ci rămân în `docs/anthropic/README.md` și `docs/openai/README.md`, cu data verificării (vezi §8.3).
+**Scop:** aplicația spune cât cheltuie, în loc ca utilizatorul să afle din factură. Până aici, fiecare răspuns costa ceva și nimic din interfață nu spunea cât — cea mai frecventă surpriză neplăcută a unui proiect cu LLM-uri.
+
+Poanta pasului: costul unui răspuns **nu** e proporțional cu lungimea întrebării, ci cu lungimea **întregului context** trimis. De aceea măsurarea vine înaintea oricărei optimizări — altfel se optimizează după intuiție.
+
+Livrat:
+
+- **prețurile în registru** (`src/lib/providers.ts`): `pricing` per model, intrare/ieșire per milion de tokeni, cu `verifiedAt` — citite din paginile oficiale la 2026-09-16 (Claude Haiku 4.5: $1 / $5; GPT-5.6 Luna: $0,20 / $1,20). Aceleași cifre, cu aceeași dată, în `docs/anthropic/README.md` și `docs/openai/README.md`. Vezi **D-25**
+- **`src/lib/cost.ts`** — singura formulă: tokeni × preț / 1.000.000, separat pe intrare și ieșire; `undefined` intră → `undefined` iese (afișat „—”, niciodată `NaN` sau `0`). Tot aici, formatarea sumelor și a tokenilor, ca aceeași valoare să arate la fel peste tot
+- **consumul pe mesaj**: ruta citește `usage` raportat de provider și îl lipește de mesajul asistentului ca `metadata` (provider, model, prețul de atunci, tokeni, sursă „model”/„cache”), care se arhivează cu mesajul (D-19). Detaliu de AI SDK 7, verificat în sursă: callback-ul de final al lui `streamText` se numește acum `onEnd` (`onFinish` e `@deprecated`) și rulează DUPĂ ce evenimentul `finish` a plecat spre browser — deci metadatele pleacă prin `messageMetadata` pe partea `finish` (`totalUsage`, aceeași valoare), iar `onEnd` scrie în cache
+- **sub fiecare răspuns**, discret (text mic, estompat, fără culoare de alarmă): tokeni intrare · ieșire · cost; în tooltip — cât din intrare e **context retrimis** (system prompt + istoric) și cât e nou, costul fiecărei părți, modelul și data prețului. Partea retrimisă nu se estimează: se deduce din cifrele raportate (intrarea + ieșirea răspunsului anterior), și e „—” când deducția nu e sigură (răspuns anterior nemăsurat sau alt model/tokenizer)
+- **totalul pe conversație**, în header (`conversation-cost.tsx`), din arhivă — costul există abia la finalul streamului, exact când se arhivează — cu ponderea contextului retrimis, răspunsurile din cache și cele nemăsurate; cu răspunsuri nemăsurate, totalul se scrie ca minim („≥”)
+- **cache** (`src/lib/cache.ts`): interfață `get`/`set` asincronă, implementare în memorie (200 de intrări, 10 minute), cheie SHA-256 peste provider + model + system prompt + mesajele în format de model (fără `id`-urile din browser). La o nimerire, textul salvat se **redă ca stream** în același protocol, iar răspunsul e marcat „din cache”, cu cost zero. Se cachează doar răspunsurile complete (`finishReason === "stop"`). Vezi **D-26**
+- **„mai încearcă” ocolește cache-ul**: clientul trimite `trigger` în corp; la `regenerate-message` ruta nu citește din cache (doar scrie rezultatul nou)
+- **limită de cereri** (`src/lib/rate-limit.ts`): 10 pe minut per IP, fereastră glisantă, verificată prima în rută; răspuns `429` cu `Retry-After` și `retryAt`. În interfață, o alertă neutră „Pauză scurtă” (nu roșie) cu ora locală de la care se poate trimite din nou — tipul erorii se alege dintr-un registru (`describeChatError` + `ERROR_PRESENTATION`), nu din `if`-uri pe text. Vezi **D-27**
+- fără `version` nou în `persist`: `metadata` exista deja, opțional, în tipul `UIMessage`; mesajele vechi, fără el, sunt valide și se citesc ca „nemăsurate” printr-o validare explicită (`messageUsage` din `message-utils.ts`), nu printr-o migrare
+
+**Ce NU se cachează, decis explicit:** nicio cheie care ar conține date personale fără profil (cheia include mereu system prompt-ul întreg); nimic la care utilizatorul a cerut explicit reluare; niciun răspuns incomplet (oprit, tăiat, eșuat).
+
+**Unde a rămas o muchie ascuțită, conștient:**
+
+- un răspuns oprit cu „Stop” sau întrerupt de o eroare **se plătește** la provider, dar nu are consum raportat — apare ca „nemăsurat” în total, nu ca gratuit;
+- OpenAI cachează automat prefixele lungi și le taxează mai ieftin, iar peste pragul de context lung taxează mai scump; formula folosește doar prețul de bază, deci pentru OpenAI costul afișat e o aproximare în ambele direcții pe conversații foarte lungi (vezi `docs/openai/README.md`);
+- cache-ul și contorul de cereri sunt per instanță și se golesc la repornire — pe Vercel, o retrimitere poate ajunge pe altă instanță și se plătește din nou.
+
+**Gata când / verificat** (2026-09-16, pe `next dev`, cu chei reale):
+
+- aceeași întrebare, cu același profil, de două ori prin `curl`: prima `source: "model"` (399 → 57 tokeni, ~1,9 s), a doua `source: "cache"`, aceiași tokeni, ~0,5 s; în browser, a doua apare „din cache · … · 0,00 USD”, iar totalul conversației nu crește;
+- „mai încearcă” pe răspunsul din cache a chemat modelul (66 de tokeni de ieșire în loc de 56, cost nou) — nu a întors textul salvat;
+- același mesaj cu alt obiectiv în profil a mers la model, nu la cache;
+- o conversație de două mesaje: al doilea răspuns — 561 intrare, din care 541 retrimis (= 468 + 73 de la primul) și 20 noi; totalul din header e suma celor două;
+- 12 cereri trimise în rafală: după a zecea din minut, `429` cu `Retry-After` și `retryAt`; în interfață, „Pauză scurtă … Poți trimite din nou de la ora 18:07:47.”
+
+**De discutat la curs:**
+
+- **de ce costul crește cu pătratul lungimii conversației** când se retrimite tot istoricul: mesajul _k_ trimite la intrare toate cele _k−1_ schimburi dinainte, deci o conversație de _n_ mesaje plătește la intrare ~1 + 2 + … + _n_ ≈ _n_²/2 „mesaje”. Dublezi lungimea, cvadruplezi costul de intrare. Se vede direct în aplicație: ponderea „context retrimis” din header crește cu fiecare mesaj;
+- ce înseamnă asta pentru un chat lung: după câteva zeci de mesaje, aproape tot ce plătești e istoric pe care modelul l-a văzut deja — iar „o conversație nouă” e cea mai ieftină optimizare disponibilă azi;
+- **cele trei pârghii reale de cost**: model mai mic (un ordin de mărime între tier-uri — vezi tabelele din `docs/`), istoric mai scurt (strategia de context din F3) și mai puține retrimiteri (cache-ul și limita de cereri de aici). Streamingul, formularea promptului sau „cuvinte mai puține în întrebare” nu sunt pârghii serioase;
+- de ce cache-ul de aici NU e o reducere de cost (cheia conține profilul) și de ce un cache care ar ignora profilul ar fi o scurgere de date, nu o optimizare;
+- de ce o limită de cereri în memorie nu e securitate (instanțe multiple, repornire, IP variabil) — și de ce e totuși utilă.
 
 ---
 
@@ -435,7 +476,7 @@ Livrează:
 
 - ✅ deploy (mutat în F1.2)
 - ✅ variabilele de mediu ale providerilor, configurate în platformă (mutat în F2.5)
-- ⬜ monitorizarea erorilor și a consumului de tokeni
+- ⬜ monitorizarea erorilor și a consumului de tokeni — **agregat, pe server**. Consumul per răspuns și per conversație se vede în interfață de la F4.2, dar doar în browserul utilizatorului; „cât a costat ultima săptămână” cere încă un loc central
 
 **Gata când:** se poate spune cât a costat ultima săptămână și unde a eșuat un răspuns, fără să fie nevoie de un raport de la utilizator.
 
@@ -492,16 +533,32 @@ Acesta e un compromis deliberat pentru a ajunge repede la partea de agent. **Tri
 
 Modelul de cost este același la ambii provideri: **se plătește per token, cu tarif diferit pentru intrare și pentru ieșire**, iar prețul depinde de modelul ales — modelele mici sunt cu un ordin de mărime mai ieftine decât cele mari.
 
+**Ce se măsoară efectiv (de la F4.2):**
+
+- pentru fiecare răspuns: tokenii de intrare și de ieșire **raportați de provider** (nu estimați), providerul, modelul și prețul valabil la momentul generării; costul se calculează din ele într-un singur loc, `src/lib/cost.ts` (D-25);
+- o valoare lipsă de la provider e „necunoscut” și se afișează „—”, niciodată `0`;
+- din intrarea fiecărui răspuns, partea de **context retrimis** (system prompt + istoric), dedusă din cifrele raportate ale răspunsului anterior;
+- pe conversație: totalul, ponderea contextului retrimis, răspunsurile din cache (gratuite) și cele nemăsurate (total afișat ca minim).
+
+**Unde se vede:** sub fiecare răspuns al asistentului (discret, cu detaliile în tooltip) și în bara de sus, pentru conversația deschisă. Doar în browserul utilizatorului — nu există încă o agregare pe server (F7).
+
+**Unde stau prețurile:** în registrul `src/lib/providers.ts`, per model, cu data verificării, citite din pagina oficială de prețuri. Aceleași cifre, cu aceeași dată, în `docs/anthropic/README.md` și `docs/openai/README.md`. Când se schimbă modelul sau prețul, se schimbă în ambele locuri, în același commit.
+
+**Protecții existente:**
+
+- **limită de cereri**: 10 pe minut per client, în ruta de chat, cu `429` și momentul reîncercării afișat clar (D-27) — protecție de bun-simț împotriva retrimiterilor în buclă, nu măsură de securitate;
+- **cache de răspunsuri identice**: aceeași întrebare, cu același context și profil, pe același model, nu se plătește a doua oară în 10 minute (D-26) — protecție la retrimiteri, nu reducere de cost (cheia conține profilul, deci nimeririle sunt rare);
+- **limita de cheltuială din contul providerului** rămâne singura plasă reală la nivel de cont — pasul manual din `docs/<provider>/README.md`.
+
 Ce contează pentru această aplicație:
 
 - **System prompt-ul se plătește la fiecare mesaj.** Profilul intră în fiecare request, deci un profil care crește necontrolat crește costul fiecărui răspuns. La F3 asta devine o constrângere reală de design pentru memorie.
-- **Istoricul conversației se retrimite** la fiecare mesaj. Costul unei conversații lungi crește neliniar.
+- **Istoricul conversației se retrimite** la fiecare mesaj, deci costul de intrare al unei conversații crește cu **pătratul** lungimii ei (vezi „De discutat” la F4.2). Pârghiile reale sunt trei: model mai mic, istoric mai scurt, mai puține retrimiteri.
 - Streamingul nu schimbă costul, doar percepția de viteză.
+- Un răspuns oprit cu „Stop” se plătește, dar nu are consum raportat.
 - Uneltele (F5) adaugă apeluri suplimentare pentru același răspuns.
 
-**Prețurile concrete nu se scriu aici**, ca să nu rămână greșite tăcut. Ele intră în `docs/anthropic/README.md` și `docs/openai/README.md`, cu link către pagina oficială de prețuri și data la care au fost verificate. Măsurarea reală a consumului intră în F4.
-
-**Buget de lucru pentru curs:** dezvoltarea și testarea manuală a acestei aplicații se încadrează în câțiva dolari pe provider, dacă se folosesc modele mici pentru dezvoltare și cele mari doar pentru verificarea calității răspunsurilor.
+**Buget de lucru pentru curs:** dezvoltarea și testarea manuală a acestei aplicații se încadrează în câțiva dolari pe provider, dacă se folosesc modele mici pentru dezvoltare și cele mari doar pentru verificarea calității răspunsurilor. Ordin de mărime măsurat: un răspuns scurt pe Claude Haiku 4.5 costă sub o zecime de cent.
 
 ### 8.4 Performanță
 
@@ -515,6 +572,7 @@ Aplicația spune ce s-a întâmplat, în loc să eșueze mut. Situațiile care s
 
 - cheie de API lipsă sau invalidă → mesaj care spune ce variabilă lipsește (fără să afișeze valori)
 - rate limit sau provider indisponibil → mesaj distinct de o eroare de cod
+- limita de cereri a aplicației (F4.2) → alertă neutră, nu roșie, cu ora locală de la care se poate trimite din nou — nu o eroare tehnică
 - stream întrerupt la mijloc → răspunsul parțial rămâne vizibil, nu dispare
 - profil gol → aplicația funcționează, dar spune de ce răspunsurile sunt generice
 
@@ -589,3 +647,4 @@ Acest fișier este sursa de adevăr. Regulile:
 | 2026-09-14 | **D-15 reimplementată** (nu e cerință nouă): tema a ieșit din `useAppStore` (Zustand) și a trecut pe un mecanism propriu, `createContext`+`useContext` (`src/components/theme/theme-provider.tsx`) — pasul didactic unde se închide, pe cod real, comparația store-vs-context pregătită la F3.1. Provider scris de mână (`createContext`+`useState`), `useTheme()` aruncă eroare clară dacă lipsește providerul, `resolveTheme(preference, systemPrefersDark)` rămâne singura regulă de decizie, pură și exportată separat; „sistem" ascultă `matchMedia("(prefers-color-scheme: dark)")` cu `addEventListener`, abonat doar cât timp preferința e „sistem". Preferința se salvează sub cheia ei proprie, `skillforge-theme` (nu mai sub `skillforge-app`), citită cu lazy initializer în `try/catch`; punte temporară din cheia veche pentru cine avea deja o alegere salvată. `theme`/`setTheme` au ieșit din `AppState` și din `partialize` — o singură sursă de adevăr pentru preferință. Scriptul sincron din `layout.tsx`, care previne flash-ul alb la încărcare, actualizat pe cheia nouă (capcana pasului: rămas pe cea veche, n-ar mai fi găsit nimic). `src/components/ui/sonner.tsx` trece de la `next-themes` la `useTheme()` — **excepție documentată** la regula „nu se editează manual `src/components/ui/`", altfel notificările ar fi rămas mereu pe „system"; `next-themes` rămâne în `package.json` ca dependență a lui `sonner`, nefolosită direct.                                                                                                         |
 | 2026-09-14 | Adăugată **F3.2 — Finisaje UX: markdown, highlighting, editare mesaje**, imediat livrată: `src/components/chat/markdown.tsx` (singurul component de randare markdown, fără `rehype-raw`, fără `dangerouslySetInnerHTML` pe text de la model), `src/components/chat/code-block.tsx` (highlighting cu `react-syntax-highlighter`, build „light", 7 limbaje înregistrate explicit — `typescript`, `tsx`, `javascript`, `json`, `bash`, `sql`, `python` — plus buton de copiere). Bundle-ul chunk-ului principal a crescut cu ~216 KB necomprimat, măsurat înainte/după cu `git stash`, nu presupus. Editare + retrimitere pe mesajele utilizatorului, în `message-item.tsx`/`chat.tsx`: `sendMessage({ text, messageId })` — mecanismul nativ al SDK-ului, nu un `setMessages` scris manual — taie și înlocuiește un singur fir, nu două paralele; dezactivată cât timp `isBusy`. Indicatorul „scrie…" era deja derivat din `status` din F1.4 — verificat, nu rescris. Dependențe noi (nu integrări): `react-markdown`, `remark-gfm`, `react-syntax-highlighter` + `@types/react-syntax-highlighter`, notate în `README.md`. Regulă nouă de securitate în `AGENTS.md`: conținutul de la model se randează fără HTML brut, printr-un singur component reutilizat. F3 rămâne faza curentă — neîncepute încă: fapte reținute, strategia pentru limita de context.                                                                                                                                                                                                                      |
 | 2026-09-14 | **F4 devine faza curentă și e livrată PARȚIAL**, prin pasul **F4.1 — Comutatorul și abstracția din spatele lui**: interfața comună de provider (Anthropic + OpenAI), comutare din interfață și `docs/openai/README.md` sunt gata; **afișarea consumului și a costului NU** — rămâne F4.2, scris explicit ca faza să nu pară închisă. `src/lib/providers.ts` rămâne singura listă (cu `apiKeyEnvVar` — NUMELE variabilei, nu valoarea) și capătă `resolveProviderId()`; a apărut `src/lib/providers.server.ts` cu `getModel()` (singurul loc care instanțiază un SDK, cu `MODEL_FACTORIES` ca `Record<ProviderId, …>`, deci ramura e cerută de compilator) și `isProviderConfigured()`; rută nouă `GET /api/providers`, care trimite spre browser doar verdicte + motiv, niciodată valori de chei; comutatorul a intrat în composer (`provider-picker.tsx`), iar secțiunea din preferințe a devenit stare de configurare, nu comutator. `/api/chat` primește `providerId`/`modelId` la fiecare mesaj, le validează contra registrului (id fabricat → implicit) și compune mesajele de eroare din registru. Câmpul `implemented` din registru a dispărut: nu mai are sens când fiecare intrare are, prin tip, o implementare. Adăugate deciziile **D-22**, **D-23**, **D-24**. §8.2 actualizată — profilul poate pleca acum spre oricare dintre cei doi provideri, în funcție de alegerea de la momentul mesajului. Skill nou: `add-provider`. **F3 rămâne deschisă** (fapte reținute, strategia pentru limita de context — neîncepute), marcată ca atare ca să nu pară încheiată. |
+| 2026-09-16 | **F4.2 livrată, F4 încheiată**: consumul raportat de provider pe fiecare mesaj (metadate arhivate cu mesajul), cost per răspuns și total pe conversație, cu ponderea contextului retrimis; formula într-un singur loc (`src/lib/cost.ts`); prețurile în registru cu data verificării (**corectat** față de F4.1, unde scria că tarifele nu intră în cod); cache de răspunsuri identice în memorie (`src/lib/cache.ts`, redat ca stream, marcat în interfață, ocolit de „mai încearcă”); limită de 10 cereri/minut cu `429` și alertă clară. Adăugate deciziile **D-25**, **D-26**, **D-27**. §8.3 rescrisă cu ce se măsoară, unde se vede și ce protecții există; §8.5 completată. Header-ul arată faza curentă: **F3 reluată**. Nicio integrare externă nouă (cache-ul și contorul sunt în memorie).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |

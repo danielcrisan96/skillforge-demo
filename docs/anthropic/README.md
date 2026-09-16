@@ -79,36 +79,60 @@ Ce nu poate face agentul — se face o singură dată, de mână:
 
 - **Model de tarifare:** per token, separat la intrare și la ieșire. Nu există
   abonament: plătești ce consumi.
-- **Modelele disponibile:** `claude-opus-5` (implicit) și `claude-haiku-4-5` — vezi `modelId` în
-  [`src/lib/providers.ts`](../../src/lib/providers.ts), singurul loc unde sunt scrise.
+- **Modelul folosit de aplicație:** `claude-haiku-4-5` (Claude Haiku 4.5) — vezi
+  intrarea `anthropic` din [`src/lib/providers.ts`](../../src/lib/providers.ts),
+  singurul loc unde sunt scrise id-ul și prețul lui.
 
-| Model            | Intrare / 1M tokeni | Ieșire / 1M tokeni |
-| ---------------- | ------------------- | ------------------ |
-| Claude Opus 5    | $5                  | $25                |
-| Claude Sonnet 5  | $2                  | $10                |
-| Claude Haiku 4.5 | $1                  | $5                 |
+**Prețul care intră în registru** — aceleași cifre, cu aceeași dată, ca în
+`pricing` din `src/lib/providers.ts`. Când se schimbă una, se schimbă amândouă,
+în același commit:
 
-**Pentru a selecta Haiku din interfață:** deschide Preferințe → Agenți și alege
-„Claude Haiku 4.5". Opus 5 costă 5 ori mai mult pe intrare și 5 ori mai mult pe
-ieșire; Haiku e potrivit pentru a lua niște răspunsuri ușoare pe durata cursului.
+| Model (folosit)  | `modelId`          | Intrare / 1M tokeni | Ieșire / 1M tokeni | Verificat la |
+| ---------------- | ------------------ | ------------------- | ------------------ | ------------ |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | $1                  | $5                 | 2026-09-16   |
 
-**Pentru a adauga Sonnet 5:** adaugă o intrare nouă în `src/lib/providers.ts` cu
-`modelId: "claude-sonnet-5"` — e o singură linie, plus `modelLabel` alături, ca
-interfața să nu mintă despre cine răspunde. (Sonnet e de 2,5 ori mai ieftin decât
-Opus, dar mai scump decât Haiku.)
+Pentru comparație (nefolosite în aplicație, aceeași pagină, aceeași dată): Claude
+Sonnet 5 $2 / $10, Claude Opus 5 $5 / $25. **Pentru a schimba modelul:** editezi
+`modelId`, `modelLabel` și `pricing` din intrarea `anthropic` a registrului — toate
+trei, altfel aplicația afișează costul modelului vechi pentru răspunsurile celui
+nou.
 
+- **Ce vede aplicația din cost (F4.2):** sub fiecare răspuns — tokenii raportați de
+  Anthropic și costul calculat cu prețul de mai sus; în bara de sus — totalul
+  conversației și cât din el e context retrimis. Nu e factura: prompt caching-ul
+  Anthropic nu e activat în SkillForge, deci nu apar tarifele de cache, iar un
+  răspuns oprit cu „Stop" se plătește fără să aibă consum raportat.
 - **Ce umflă factura exact aici:** API-ul e **fără stare**, deci la fiecare mesaj
-  se retrimite **toată conversația**. Al zecelea mesaj dintr-o discuție costă la
-  intrare cât primele nouă la un loc. Într-un chat lung, tokenii de intrare devin
-  partea dominantă — nu răspunsul. Din F3, strategia pentru limita de context
-  atacă direct problema asta.
-- **Ce e gratuit și până unde:** creditul mic primit la înregistrare. Limitele de
-  cereri pe minut cresc odată cu suma cheltuită (tier-urile Start / Build /
-  Scale).
+  se retrimite **toată conversația** plus system prompt-ul. Costul de intrare al
+  unei conversații crește cu pătratul lungimii ei — ponderea „context retrimis"
+  din bara de sus arată asta pe conversația ta.
+- **Limitele de cereri care ne pot afecta** (Messages API, Claude Haiku 4.5,
+  limitele standard ale tier-urilor):
+
+  | Tier  | Cereri / minut | Tokeni intrare / minut | Tokeni ieșire / minut |
+  | ----- | -------------- | ---------------------- | --------------------- |
+  | Start | 1.000          | 2.000.000              | 400.000               |
+  | Build | 5.000          | 5.000.000              | 1.000.000             |
+  | Scale | 10.000         | 10.000.000             | 2.000.000             |
+
+  Organizațiile noi pot porni într-un tier de evaluare, **sub** aceste cifre, până
+  își construiesc istoricul. Peste limită, API-ul răspunde `429` cu antet
+  `retry-after`; peste plafonul lunar de cheltuieli al tier-ului (Start: $500),
+  tot `429`, dar fără `retry-after`, până la începutul lunii următoare. În
+  interfață ambele apar ca „Ai atins limita de cereri sau creditul contului
+  Anthropic".
+
+  Pentru un singur utilizator, limitele Anthropic nu sunt cele care ne opresc:
+  **limita aplicației** (10 cereri pe minut, `src/lib/rate-limit.ts`) intervine cu
+  mult înainte și are propriul mesaj („Pauză scurtă").
+
+- **Ce e gratuit și până unde:** creditul mic primit la înregistrare.
 - **Pagina oficială de prețuri:** <https://platform.claude.com/docs/en/about-claude/pricing>
-- **Verificat la data:** 2026-09-07
+- **Pagina oficială de limite:** <https://platform.claude.com/docs/en/api/rate-limits>
+- **Verificat la data:** 2026-09-16
 - **Unde se vede consumul curent:** platform.claude.com → **Usage** (tokeni și
-  cost, pe zi și pe model) și **Billing** pentru creditul rămas.
+  cost, pe zi și pe model) și **Billing** pentru creditul rămas. Tier-ul curent și
+  limitele exacte ale contului: **Settings → Limits**.
 
 ## Verificare
 
@@ -129,12 +153,14 @@ Opus, dar mai scump decât Haiku.)
 
 **Ce vezi dacă ceva nu e în regulă:**
 
-| Situație                           | Ce apare                                                                                            |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Cheia lipsește                     | HTTP 400 și, în interfață: „Cheia de API nu e configurată. Adaugă ANTHROPIC_API_KEY în .env.local…" |
-| Cheia e greșită                    | „Cheia de API a fost refuzată de Anthropic. Verifică ANTHROPIC_API_KEY în .env.local."              |
-| Credit epuizat / prea multe cereri | „Ai atins limita de cereri sau creditul contului Anthropic. Încearcă din nou peste puțin."          |
-| `modelId` greșit                   | „Modelul cerut nu există sau contul nu are acces la el."                                            |
+| Situație                              | Ce apare                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Cheia lipsește                        | HTTP 400 și, în interfață: „Cheia de API nu e configurată. Adaugă ANTHROPIC_API_KEY în .env.local…"     |
+| Cheia e greșită                       | „Cheia de API a fost refuzată de Anthropic. Verifică ANTHROPIC_API_KEY în .env.local."                  |
+| Credit epuizat / prea multe cereri    | „Ai atins limita de cereri sau creditul contului Anthropic. Încearcă din nou peste puțin."              |
+| `modelId` greșit                      | „Modelul cerut nu există sau contul nu are acces la el."                                                |
+| Aceeași întrebare trimisă de două ori | A doua apare „din cache · … · 0,00 USD" — fără apel către Anthropic, fără cost                          |
+| Prea multe cereri într-un minut       | Alertă „Pauză scurtă" cu ora de la care se poate trimite din nou (limita aplicației, nu a providerului) |
 
 Mesajele astea sunt traduse în `onError` din
 [`src/app/api/chat/route.ts`](../../src/app/api/chat/route.ts). Eroarea brută a

@@ -1,8 +1,18 @@
-import { APICallError, convertToModelMessages, streamText, type UIMessage } from "ai";
+import {
+  APICallError,
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  type UIMessage
+} from "ai";
 
+import { buildResponseCacheKey, responseCache, type CachedResponse } from "@/lib/cache";
 import { buildSystemPrompt } from "@/lib/system-prompt";
-import { PROVIDERS, resolveProviderId } from "@/lib/providers";
+import { PROVIDERS, resolveProviderId, type ProviderInfo } from "@/lib/providers";
 import { getModel, isProviderConfigured } from "@/lib/providers.server";
+import { CHAT_RATE_LIMIT, checkRateLimit, clientKeyFromRequest } from "@/lib/rate-limit";
+import type { MessageUsageMetadata } from "@/lib/types";
 
 // Ruta pe care stă agentul.
 //
@@ -23,6 +33,11 @@ import { getModel, isProviderConfigured } from "@/lib/providers.server";
 // corpul cererii, iar modelul se construiește prin `getModel`. Observă ce NU e
 // aici — niciun `if (providerId === "openai")`. Codul de mai jos ar arăta la fel
 // cu patru provideri; singura diferență ar fi lungimea registrului.
+//
+// De la F4.2, ruta face costul VIZIBIL și are două plase de siguranță, în ordinea
+// în care le întâlnește o cerere: limita de cereri pe minut (`rate-limit.ts`) și
+// cache-ul de răspunsuri identice (`cache.ts`). Consumul raportat de provider
+// pleacă spre browser lipit de mesaj, ca metadate — vezi `messageMetadata` mai jos.
 
 export const runtime = "nodejs";
 
@@ -50,10 +65,38 @@ type ChatRequestBody = {
   profile?: unknown;
   providerId?: unknown;
   modelId?: unknown;
+  /**
+   * Ce a declanșat cererea: un mesaj nou („submit-message") sau „mai încearcă"
+   * („regenerate-message"). Tot input neîncredere — se compară doar cu o valoare
+   * exactă, iar orice altceva e tratat ca mesaj obișnuit.
+   */
+  trigger?: unknown;
 };
 
 export async function POST(request: Request) {
-  const { messages, profile, providerId, modelId }: ChatRequestBody = await request.json();
+  // Limita de cereri, PRIMA verificare — înainte de a citi corpul, de a construi
+  // promptul sau de a căuta în cache. Tot ce e după ea costă ceva (CPU, memorie
+  // sau bani), iar rostul ei e ca o rafală să nu ajungă la niciuna.
+  //
+  // Se aplică și cererilor care ar fi nimerit cache-ul: altfel limita ar depinde
+  // de conținutul cererii, iar clientul n-ar putea ști dinainte dacă o respectă.
+  const rateLimit = checkRateLimit(clientKeyFromRequest(request));
+  if (!rateLimit.allowed) {
+    // 429 cu `Retry-After` — convenția HTTP pe care o respectă și clienții
+    // automați. Corpul are aceeași formă `{ error }` ca la 400, plus MOMENTUL
+    // reîncercării, pe care interfața îl formatează în ora locală (vezi
+    // `describeChatError`). Serverul nu formatează ora: pe Vercel rulează în UTC,
+    // iar utilizatorul ar citi o oră decalată cu câteva ore.
+    return Response.json(
+      {
+        error: `Ai trimis prea multe mesaje într-un minut (limita e de ${CHAT_RATE_LIMIT.maxRequests}). E o plasă de siguranță, ca un buton apăsat în buclă să nu consume creditul.`,
+        retryAt: rateLimit.retryAt
+      },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
+  const { messages, profile, providerId, modelId, trigger }: ChatRequestBody = await request.json();
 
   // Corpul se citește ÎNAINTE de verificarea cheii, spre deosebire de F1.4.
   //
@@ -96,6 +139,34 @@ export async function POST(request: Request) {
   // e input neîncredere — se normalizează înainte să intre în prompt.
   const systemPrompt = buildSystemPrompt(profile);
 
+  // `await`: în AI SDK 7 conversia e ASINCRONĂ, fiindcă unele părți de mesaj
+  // (fișiere, atașamente) pot avea nevoie să fie descărcate. Fără `await`, în
+  // `messages` ar ajunge un `Promise` — TypeScript prinde greșeala, dar în
+  // JavaScript simplu ar fi trecut și ar fi eșuat abia la provider.
+  //
+  // Conversia se face o singură dată, aici, fiindcă AMBELE căi de mai jos au
+  // nevoie de rezultat: cheia de cache și apelul către model.
+  const modelMessages = await convertToModelMessages(messages);
+
+  const cacheKey = buildResponseCacheKey({
+    providerId: provider.id,
+    modelId: provider.modelId,
+    systemPrompt,
+    messages: modelMessages
+  });
+
+  // „Mai încearcă" NU citește din cache — decis explicit. Reluarea trimite exact
+  // aceleași mesaje ca prima dată, deci ar nimeri garantat cache-ul și ar întoarce
+  // același text: butonul n-ar face nimic, iar utilizatorul ar crede că e stricat.
+  // Cine apasă „mai încearcă" CERE un apel nou și îl plătește conștient — de asta
+  // există limita de cereri de mai sus. Răspunsul nou îl înlocuiește în cache pe cel vechi.
+  const isRegenerate = trigger === "regenerate-message";
+
+  if (!isRegenerate) {
+    const cached = await responseCache.get(cacheKey);
+    if (cached) return replayCachedResponse(cached, provider, request.signal);
+  }
+
   const result = streamText({
     // Aici se vede ce cumpără abstracția: `streamText` primește un `LanguageModel`
     // și nu-l interesează al cui e. Alegerea SDK-ului s-a făcut într-un singur
@@ -112,14 +183,54 @@ export async function POST(request: Request) {
     // Injectat pe server, nu livrat din client. Textul stă aici, nu în browser.
     system: systemPrompt,
 
-    // `await`: în AI SDK 7 conversia e ASINCRONĂ, fiindcă unele părți de mesaj
-    // (fișiere, atașamente) pot avea nevoie să fie descărcate. Fără `await`, în
-    // `messages` ar ajunge un `Promise` — TypeScript prinde greșeala, dar în
-    // JavaScript simplu ar fi trecut și ar fi eșuat abia la provider.
-    messages: await convertToModelMessages(messages)
+    messages: modelMessages,
+
+    /**
+     * Finalul generării: aici se SCRIE în cache.
+     *
+     * `onEnd` e numele din AI SDK 7 pentru ce versiunile anterioare numeau
+     * `onFinish` (care încă există, dar e marcat `@deprecated`). Primește textul
+     * final și `usage` — consumul raportat EXACT de provider, nu estimat.
+     *
+     * De ce nu se salvează streamul: un stream nu se poate păstra, e o curgere
+     * consumată o singură dată. Se păstrează rezultatul lui — textul acumulat — și,
+     * la o nimerire, se REDĂ ca stream (`replayCachedResponse`).
+     *
+     * Se cachează DOAR un răspuns complet (`finishReason === "stop"`). Unul tăiat
+     * de limita de tokeni sau de un filtru, salvat, ar fi servit la nesfârșit
+     * într-o formă pe care modelul n-a dat-o niciodată ca răspuns întreg. Un
+     * răspuns oprit cu „Stop" sau întrerupt de o eroare nu ajunge deloc aici.
+     */
+    onEnd: async ({ text, usage, finishReason }) => {
+      if (finishReason !== "stop" || text.trim().length === 0) return;
+      await responseCache.set(cacheKey, {
+        text,
+        usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }
+      });
+    }
   });
 
   return result.toUIMessageStreamResponse({
+    /**
+     * Consumul, lipit de mesajul asistentului ca metadate.
+     *
+     * De ce aici și nu în `onEnd` de mai sus: `onEnd` rulează abia după ce
+     * evenimentul `finish` a PLECAT deja spre browser (e apelat la închiderea
+     * streamului) — metadatele scrise acolo n-ar mai avea cu ce călători. Partea
+     * `finish` poartă `totalUsage`, aceeași valoare pe care `onEnd` o primește ca
+     * `usage`, din același loc din SDK.
+     *
+     * Doar pe `finish`, nu și pe `start`: la start nu se știe nimic despre consum,
+     * iar niște metadate fără tokeni ar fi afișat „—" pe tot parcursul streamului.
+     */
+    messageMetadata: ({ part }) => {
+      if (part.type !== "finish") return undefined;
+      return usageMetadata(provider, "model", {
+        inputTokens: part.totalUsage.inputTokens,
+        outputTokens: part.totalUsage.outputTokens
+      });
+    },
+
     /**
      * Traducerea erorilor de provider în text citibil.
      *
@@ -166,4 +277,69 @@ export async function POST(request: Request) {
       return `Apelul către ${provider.label} a eșuat. Detaliile complete sunt în terminalul serverului.`;
     }
   });
+}
+
+/**
+ * Metadatele de consum pentru un răspuns — aceeași formă pentru ambele căi
+ * (model și cache), construită într-un singur loc.
+ *
+ * Prețul se copiază din registru ÎN mesaj, la momentul generării: dacă registrul
+ * se schimbă mâine, conversațiile de azi rămân calculate cu prețul de azi.
+ */
+function usageMetadata(
+  provider: ProviderInfo,
+  source: MessageUsageMetadata["source"],
+  usage: MessageUsageMetadata["usage"]
+): MessageUsageMetadata {
+  return {
+    providerId: provider.id,
+    modelId: provider.modelId,
+    pricing: provider.pricing,
+    usage,
+    source
+  };
+}
+
+/**
+ * Redă un răspuns din cache ca stream — în ACELAȘI protocol pe care îl scrie
+ * `toUIMessageStreamResponse()`, deci `useChat` nu știe și nu trebuie să știe
+ * de unde vine textul.
+ *
+ * Textul pleacă în bucăți mici, cu o pauză scurtă, nu dintr-o bucată: interfața
+ * e construită pentru un text care crește, iar derularea automată și randarea
+ * markdown-ului se comportă la fel ca la un răspuns real. Dar pauza e mult mai
+ * scurtă decât ritmul unui model — și, mai important, mesajul e MARCAT ca venit
+ * din cache (`source: "cache"`), altfel utilizatorul ar crede că modelul a
+ * răspuns instantaneu și s-ar mira data viitoare de ce nu mai e la fel de rapid.
+ */
+function replayCachedResponse(cached: CachedResponse, provider: ProviderInfo, signal: AbortSignal): Response {
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      const textId = "cached-text";
+      writer.write({ type: "start" });
+      writer.write({ type: "text-start", id: textId });
+
+      // Bucăți pe cuvinte, păstrând spațiile și rândurile noi — markdown-ul (liste,
+      // blocuri de cod) depinde de ele.
+      for (const chunk of cached.text.match(/\S+\s*|\s+/g) ?? []) {
+        // „Stop" apăsat în timpul redării: fără verificarea asta, bucla ar continua
+        // să scrie într-un stream pe care nu-l mai citește nimeni.
+        if (signal.aborted) return;
+        writer.write({ type: "text-delta", id: textId, delta: chunk });
+        await new Promise(resolve => setTimeout(resolve, 8));
+      }
+
+      writer.write({ type: "text-end", id: textId });
+      writer.write({
+        type: "finish",
+        finishReason: "stop",
+        // Tokenii ORIGINALI rămân pe mesaj (sunt context retrimis la mesajul
+        // următor), dar `source: "cache"` face ca `messageCost` să-l socotească
+        // gratuit — acum nu s-a plătit nimic.
+        messageMetadata: usageMetadata(provider, "cache", cached.usage)
+      });
+    }
+  });
+
+  return createUIMessageStreamResponse({ stream });
 }

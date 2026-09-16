@@ -20,9 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Markdown } from "@/components/chat/markdown";
+import { MessageUsage } from "@/components/chat/message-usage";
 import { useClipboardAvailable } from "@/hooks/use-clipboard-available";
 import { cn } from "@/lib/utils";
 import { messageText } from "@/lib/message-text";
+import type { MessageUsageDetails } from "@/lib/message-utils";
 import { useAppStore } from "@/store/useAppStore";
 import type { UIMessage } from "ai";
 
@@ -80,9 +82,23 @@ type MessageItemProps = {
   onEdit?: (messageId: string, text: string) => void;
   /** Câte mesaje de DUPĂ acesta s-ar pierde dacă e reluat. 0 pe ultimul. */
   discardCount?: number;
+  /**
+   * Consumul acestui răspuns, calculat de listă (depinde de răspunsul anterior).
+   * `null` pentru mesajele utilizatorului, cât timp răspunsul încă curge (consumul
+   * sosește abia la final) și pentru răspunsurile dinainte de F4.2 — în toate
+   * cazurile nu se afișează nimic, nu un „0" care ar părea gratuit.
+   */
+  usage?: MessageUsageDetails | null;
 };
 
-export function MessageItem({ message, isBusy = false, onRetry, onEdit, discardCount = 0 }: MessageItemProps) {
+export function MessageItem({
+  message,
+  isBusy = false,
+  onRetry,
+  onEdit,
+  discardCount = 0,
+  usage = null
+}: MessageItemProps) {
   const profileName = useAppStore(state => state.profile.name);
   const config = ROLE_CONFIG[message.role];
 
@@ -311,6 +327,10 @@ export function MessageItem({ message, isBusy = false, onRetry, onEdit, discardC
             </div>
           )}
         </div>
+
+        {/* Sub bulă, nu în ea: costul e despre mesaj, nu parte din textul lui —
+            și nu intră în copiere sau în export. */}
+        {usage && !isEditing && <MessageUsage details={usage} />}
       </div>
     </div>
   );

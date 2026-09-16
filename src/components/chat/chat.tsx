@@ -95,7 +95,7 @@ function Conversation({ conversationId }: { conversationId: string }) {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages, id }) => {
+        prepareSendMessagesRequest: ({ messages, id, trigger }) => {
           // Trecut prin registru înainte să plece: o valoare veche rămasă în
           // `localStorage` (un provider scos între timp) devine cel implicit,
           // aceeași rezolvare pe care o face și serverul când primește cererea.
@@ -113,7 +113,12 @@ function Conversation({ conversationId }: { conversationId: string }) {
               // `localStorage` la id-ul de model de la instalare — și ar fi
               // continuat să ceară un model retras, mult după ce registrul a
               // trecut pe altul.
-              modelId: PROVIDERS[providerId].modelId
+              modelId: PROVIDERS[providerId].modelId,
+              // „submit-message" sau „regenerate-message". Transportul implicit îl
+              // trimite singur, dar din clipa în care scriem noi corpul, tot ce nu
+              // punem aici dispare. Serverul are nevoie de el ca „mai încearcă" să
+              // ocolească cache-ul — altfel butonul ar întoarce același text.
+              trigger
             }
           };
         }

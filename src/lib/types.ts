@@ -88,6 +88,67 @@ export type Conversation = {
 export type ProviderId = "anthropic" | "openai";
 
 /**
+ * Prețul unui model, per MILION de tokeni, separat pe intrare și ieșire — exact
+ * forma în care îl publică providerii, ca să se poată compara cu pagina lor
+ * fără nicio conversie făcută de mână.
+ *
+ * `verifiedAt` e obligatoriu, nu opțional: un preț fără dată e un preț care va
+ * fi greșit peste șase luni, și nimeni nu va ști de când. Cu data lângă cifră,
+ * întrebarea „mai e valabil?" are măcar un punct de plecare.
+ */
+export type ModelPricing = {
+  inputPerMillionUsd: number;
+  outputPerMillionUsd: number;
+  /** Data (ISO, `AAAA-LL-ZZ`) la care cifrele au fost citite din documentația providerului. */
+  verifiedAt: string;
+};
+
+/**
+ * Consumul raportat de provider pentru UN răspuns.
+ *
+ * Ambele câmpuri sunt OPȚIONALE, și asta e cerință, nu comoditate: în funcție de
+ * provider și de model, `usage` poate veni cu valori lipsă. Lipsa înseamnă
+ * „necunoscut" și se afișează „—". Un `0` pus în locul lipsei ar fi o minciună:
+ * ar arăta ca un răspuns gratuit. `undefined`, nu `null`, pentru că la
+ * serializarea JSON cheia pur și simplu dispare — deci la citirea înapoi din
+ * `localStorage` oricum ar fi fost `undefined`.
+ */
+export type TokenUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+};
+
+/**
+ * De unde a venit un răspuns: de la model (plătit) sau din cache-ul serverului
+ * (niciun apel, deci cost zero ADEVĂRAT — nu „necunoscut").
+ */
+export type ResponseSource = "model" | "cache";
+
+/**
+ * Ce se lipește pe un mesaj al asistentului la finalul streamului, în
+ * `metadata` — și de aici se arhivează împreună cu mesajul (D-19).
+ *
+ * Providerul, modelul și PREȚUL de la momentul generării stau pe mesaj, nu se
+ * recitesc din registru la afișare. Altfel, un total pe o conversație în care
+ * s-a comutat providerul ar fi calculat cu prețul greșit, iar o actualizare de
+ * preț în registru ar rescrie retroactiv costul conversațiilor vechi.
+ *
+ * Costul în sine NU se salvează ca cifră: se salvează ingredientele lui
+ * (tokeni + prețul de atunci) și se calculează de fiecare dată prin singura
+ * formulă din `src/lib/cost.ts`. O cifră salvată ar fi fost a doua sursă de
+ * adevăr pentru același lucru.
+ *
+ * Traversează granița server→client, deci e scris explicit.
+ */
+export type MessageUsageMetadata = {
+  providerId: ProviderId;
+  modelId: string;
+  pricing: ModelPricing;
+  usage: TokenUsage;
+  source: ResponseSource;
+};
+
+/**
  * Ce știe SERVERUL despre un provider și interfața nu are cum să afle singură.
  *
  * Traversează granița client/server, deci e scris explicit (vezi §8.6: cheile
