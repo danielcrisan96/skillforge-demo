@@ -13,3 +13,4 @@ Fiecare integrare externă (provider de LLM, bază de date, autentificare, deplo
 | Anthropic        | F1.4               | [`docs/anthropic/README.md`](./anthropic/README.md) |
 | OpenAI           | F4                 | [`docs/openai/README.md`](./openai/README.md)       |
 | Auth.js (GitHub) | F6.1               | [`docs/nextauth/README.md`](./nextauth/README.md)   |
+| Backend propriu  | F6.2               | [`docs/backend/README.md`](./backend/README.md)     |

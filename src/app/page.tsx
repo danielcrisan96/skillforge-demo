@@ -8,8 +8,11 @@ import { Chat } from "@/components/chat/chat";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
+import { ServerSync } from "@/components/sync/server-sync";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getAuthAvailability } from "@/lib/auth";
+import { isPersistenceAvailable } from "@/lib/backend.server";
+import type { AuthConfig } from "@/lib/types";
 
 // Ruta „/" — singurul ecran al aplicației.
 //
@@ -34,6 +37,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // serverul care rulează are toate variabilele.
   await connection();
   const authAvailability = getAuthAvailability();
+  // Același motiv pentru `connection()`: verdictul despre backend trebuie să fie al
+  // serverului care rulează. Înghețat la build ca „configurat”, un deploy fără
+  // variabilele backend-ului ar goli `localStorage` la ieșirea din cont fără nicio
+  // copie pe server. Verdictul, nu variabila: nimic `NEXT_PUBLIC_*` (vezi AGENTS.md).
+  const authConfig: AuthConfig = { ...authAvailability, persistenceAvailable: isPersistenceAvailable() };
 
   // `?error=<cod>` — pus de ruta de autentificare (anulare la furnizor) sau de
   // librărie (`pages.error`). Doar un șir sau nimic; o listă (`?error=a&error=b`)
@@ -45,7 +53,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     // Configurația de autentificare, deasupra a tot ce o citește: sidebar-ul (rândul de
     // cont), preferințele (emailul din profil) și fereastra de login. Vezi
     // `auth-config-provider.tsx` pentru de ce e context și nu props.
-    <AuthConfigProvider value={authAvailability}>
+    <AuthConfigProvider value={authConfig}>
       {/* `SidebarProvider` ține starea deschis/închis a sidebar-ului și decide
           singur, după lățimea ecranului, dacă îl randează fix sau într-un `Sheet`.
           De aici vine comportamentul responsive, fără cod separat pentru mobil. */}
@@ -82,6 +90,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         {/* Fereastra de login, la nivel de pagină din același motiv ca preferințele.
           Fără autentificare configurată nu are ce deschide, deci nici nu se montează. */}
         {authAvailability.configured && <SignInDialog />}
+
+        {/* Sincronizarea cu serverul (F6.2). Nu randează nimic; stă aici, sub
+          `AuthConfigProvider`, ca să poată citi sesiunea. Fără autentificare sau
+          fără backend configurat nu face nimic — nici nu golește `localStorage` la
+          ieșirea din cont —, iar aplicația rămâne pe `localStorage`, ca înainte de F6.2. */}
+        <ServerSync />
         <AuthErrorNotice code={authErrorCode} />
       </SidebarProvider>
     </AuthConfigProvider>

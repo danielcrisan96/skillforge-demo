@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { SessionProvider } from "next-auth/react";
 
-import type { AuthAvailability } from "@/lib/types";
+import type { AuthConfig } from "@/lib/types";
 
 // „E autentificarea configurată?" — răspuns pe care îl știe DOAR serverul.
 //
@@ -18,15 +18,27 @@ import type { AuthAvailability } from "@/lib/types";
 // preferință care se SCHIMBĂ; aici e CONFIGURAȚIE citită o singură dată, care nu
 // se schimbă cât timp pagina e deschisă. Tocmai de asta nu are ce căuta în store:
 // n-are acțiuni, n-are persistență și nu e a utilizatorului.
+//
+// De la F6.2 poartă și `persistenceAvailable` („există un server de pe care datele
+// contului pot reveni?”), tot calculat în `page.tsx`. Câmp nou aici, NU un context
+// separat, pentru că e varianta mai simplă: un context propriu ar fi însemnat încă
+// un provider în arbore și încă un fișier pentru un singur DA/NU cu un singur
+// consumator (`server-sync.tsx`), care oricum citește deja contextul ăsta. Și are
+// sens doar împreună cu `configured`: fără autentificare nu există persistență.
 
 /**
  * Valoarea implicită = „neconfigurat". Dacă cineva uită providerul deasupra, ramura
  * aleasă e cea sigură: nu se montează nicio componentă care cheamă `useSession`
- * fără `SessionProvider` (ar arunca).
+ * fără `SessionProvider` (ar arunca), iar `persistenceAvailable: false` înseamnă că
+ * nimic nu golește `localStorage`.
  */
-const AuthConfigContext = createContext<AuthAvailability>({ configured: false, availableProviderIds: [] });
+const AuthConfigContext = createContext<AuthConfig>({
+  configured: false,
+  availableProviderIds: [],
+  persistenceAvailable: false
+});
 
-export function AuthConfigProvider({ value, children }: { value: AuthAvailability; children: ReactNode }) {
+export function AuthConfigProvider({ value, children }: { value: AuthConfig; children: ReactNode }) {
   return (
     <AuthConfigContext.Provider value={value}>
       {/* ⚠️ `SessionProvider` se montează DOAR când autentificarea e configurată.
@@ -45,6 +57,6 @@ export function AuthConfigProvider({ value, children }: { value: AuthAvailabilit
 }
 
 /** Citește configurația de autentificare. Sigur de chemat oriunde, cu sau fără sesiune. */
-export function useAuthConfig(): AuthAvailability {
+export function useAuthConfig(): AuthConfig {
   return useContext(AuthConfigContext);
 }
