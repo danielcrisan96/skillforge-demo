@@ -178,8 +178,12 @@ function SessionAccount() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {/* `signOut` șterge cookie-ul de sesiune pe server și reîncarcă pagina.
-              Conversațiile NU se șterg: stau în `localStorage`, deci sunt ale
-              browserului, nu ale contului (limitare cunoscută, până la persistență). */}
+              Fără backend configurat, datele rămân în browser (n-ar avea de unde
+              reveni). Cu backend, ele dispar din browser abia după reîncărcare, când
+              `ServerSync` vede `unauthenticated` și golește store-ul cu
+              sincronizarea deja oprită. NU se golesc aici, înainte de `signOut`:
+              în clipa asta abonamentul la server e încă activ și ar trimite
+              golirea ca ștergere în baza de date (vezi `server-sync.tsx`). */}
           <DropdownMenuItem onClick={() => void signOut({ redirectTo: "/" })}>
             <LogOut />
             Ieși din cont

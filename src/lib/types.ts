@@ -202,6 +202,19 @@ export type AuthAvailability = {
 };
 
 /**
+ * Ce coboară prin `AuthConfigProvider`: configurația de autentificare plus verdictul
+ * „există un server de pe care datele contului pot reveni” (F6.2).
+ *
+ * `persistenceAvailable` nu e în `AuthAvailability` pentru că acela e calculat în
+ * `auth.ts`, care nu știe (și n-are de ce să știe) de backend; se compune în
+ * `page.tsx`. Tot doar un DA/NU — niciodată adresa sau cheia backend-ului.
+ */
+export type AuthConfig = AuthAvailability & {
+  /** Backend ȘI autentificare configurate — `isPersistenceAvailable()` din `backend.server.ts`. */
+  persistenceAvailable: boolean;
+};
+
+/**
  * Preferința de temă a utilizatorului — ce a ales el, nu ce se vede pe ecran.
  * „system" nu e o temă, ci instrucțiunea „urmează sistemul de operare"; tema
  * efectivă se calculează din ea (vezi `theme-provider.tsx`). Ținem cele două
@@ -211,3 +224,30 @@ export type AuthAvailability = {
 export type ThemePreference = "system" | "light" | "dark";
 
 export type ResolvedTheme = "light" | "dark";
+
+/**
+ * Profilul așa cum îl ține backend-ul (F6.2): fără `userId`.
+ *
+ * Proprietarul nu călătorește în corpul cererii — serverul îl ia din sesiune, iar
+ * backend-ul din headerul pus de server. Un `userId` trimis de browser ar fi o
+ * afirmație pe care n-avem voie s-o credem.
+ */
+export type ServerProfile = Omit<Profile, "userId">;
+
+/**
+ * O conversație venită de la backend: aceeași formă ca în store, plus `version`.
+ *
+ * `version` e numărul pe care MongoDB îl crește la fiecare salvare (optimistic
+ * locking, `@Version` în `Conversation.java`). Clientul îl trimite înapoi la
+ * următoarea salvare, iar backend-ul scrie doar dacă e încă cel curent — altfel
+ * răspunde `409`. NU intră în tipul `Conversation` și nici în `localStorage`: e
+ * starea unei sincronizări, nu o dată a utilizatorului (vezi `server-sync.ts`).
+ */
+export type ServerConversation = Conversation & { version: number };
+
+/**
+ * Motivele pentru care rutele de persistență refuză, ca interfața să poată
+ * deosebi „n-ai voie” de „nu e instalat”. Traversează granița server→client,
+ * deci e tip închis, nu `string`.
+ */
+export type PersistenceRefusalReason = "unauthenticated" | "backend-unconfigured";
