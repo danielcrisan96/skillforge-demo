@@ -85,6 +85,24 @@ type AppState = {
   activeConversationId: string | null;
 
   /**
+   * Al cui cont sunt datele din `localStorage` (F6.2): id-ul contului din sesiune
+   * (`github:<id>`), sau `null` când nu sunt încă ale nimănui — făcute înainte de
+   * prima conectare pe acest browser, sau rămase după o ieșire din cont.
+   *
+   * Fără el, browserul n-ar avea cum să deosebească „datele mele de data trecută”
+   * de „datele celui care a folosit browserul înaintea mea”: în `localStorage`
+   * arată la fel. Se persistă în ACEEAȘI intrare cu datele pe care le etichetează
+   * (`skillforge-app`), deci eticheta și datele se scriu împreună, în același JSON,
+   * și nu pot ajunge să se contrazică.
+   *
+   * E o etichetă pentru igiena browserului, NU o decizie de acces: nu pleacă spre
+   * nicio rută (serverul ia identitatea din propria sesiune, cu `auth()`), iar cine
+   * o modifică din DevTools vede tot doar ce era deja în browserul lui. Și e doar
+   * id-ul contului — emailul, numele și poza de la furnizor rămân în afara store-ului.
+   */
+  ownerUserId: string | null;
+
+  /**
    * Adevărat abia după ce `persist` a citit `localStorage`.
    *
    * Fără steagul ăsta am avea o nepotrivire de hidratare: serverul randează
@@ -172,7 +190,68 @@ type AppState = {
    * `persist` ar scrie din nou în `localStorage` degeaba.
    */
   syncConversationMessages: (id: string, messages: UIMessage[]) => void;
+
+  /**
+   * Aduce în store conversațiile citite de pe server (F6.2), la conectare.
+   *
+   * Pentru același id, copia de pe server ÎNLOCUIEȘTE copia locală: serverul e
+   * locul în care au ajuns salvările din toate ferestrele și de pe toate
+   * dispozitivele, deci el știe ultima versiune. Conversațiile care există doar
+   * local rămân, după cele de pe server — `server-sync.ts` le urcă apoi și pe ele.
+   *
+   * `activeConversationId` nu se atinge: conversația deschisă rămâne deschisă.
+   */
+  mergeServerConversations: (serverConversations: Conversation[]) => void;
+
+  /**
+   * Leagă datele locale de contul conectat (F6.2). Se cheamă la conectare, ÎNAINTE
+   * de pornirea sincronizării cu serverul — de ce ordinea e obligatorie scrie în
+   * `server-sync.tsx`.
+   *
+   * - date ale ALTUI cont → se golesc, apoi devin ale lui `userId`; altfel al doilea
+   *   om de pe același browser ar vedea conversațiile primului;
+   * - date fără proprietar → doar primesc proprietar. Sunt conversațiile purtate
+   *   înainte de prima conectare, iar migrarea din `server-sync.ts` le urcă în
+   *   contul ăsta, cum promitea F6.2;
+   * - date deja ale lui `userId` → nimic: niciun `set`, deci nicio scriere în
+   *   `localStorage`.
+   */
+  claimLocalData: (userId: string) => void;
+
+  /**
+   * Golește datele locale și le scoate proprietarul (F6.2), la ieșirea din cont
+   * sau la sesiune expirată — DOAR cu sincronizarea oprită: altfel abonamentul din
+   * `server-sync.ts` ar vedea conversațiile dispărând și le-ar șterge și de pe server.
+   *
+   * Nu e un „șterge-mi datele”: copia de pe server rămâne și revine la următoarea
+   * conectare, prin sincronizare.
+   */
+  clearAccountData: () => void;
 };
+
+/**
+ * Datele care aparțin unui cont, readuse la starea cu care pornește aplicația.
+ *
+ * Ce NU e aici, intenționat: `providerId` și tema sunt preferințe ale browserului,
+ * nu date despre om (nici nu pleacă pe server), deci rămân la schimbarea contului.
+ *
+ * `draftConversationId` e NOU ca `Chat` să se remonteze (`key`): mesajele afișate
+ * stau și în `useChat`, nu doar în store, deci golirea store-ului singură le-ar
+ * lăsa pe ecran pe ale contului precedent. Cu `activeConversationId` pus pe `null`
+ * dar cu id-ul de schiță vechi, ecranul „conversație nouă” ar avea același `key`
+ * ca înainte și n-ar remonta nimic.
+ */
+function emptyAccountData(): Pick<
+  AppState,
+  "profile" | "conversations" | "activeConversationId" | "draftConversationId"
+> {
+  return {
+    profile: MOCK_PROFILE,
+    conversations: [],
+    activeConversationId: null,
+    draftConversationId: createId()
+  };
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -183,6 +262,7 @@ export const useAppStore = create<AppState>()(
       // `null` înseamnă „ecranul de conversație nouă”, nu „nu s-a încărcat încă”.
       // Sunt două lucruri diferite; al doilea e `hasHydrated`.
       activeConversationId: null,
+      ownerUserId: null,
       hasHydrated: false,
       draftConversationId: createId(),
       isSettingsOpen: false,
@@ -265,7 +345,31 @@ export const useAppStore = create<AppState>()(
             conversations: state.conversations.map(c => (c.id === id ? { ...c, messages } : c))
           };
         });
-      }
+      },
+
+      mergeServerConversations: serverConversations => {
+        set(state => {
+          const serverIds = new Set(serverConversations.map(c => c.id));
+          return {
+            conversations: [...serverConversations, ...state.conversations.filter(c => !serverIds.has(c.id))]
+          };
+        });
+      },
+
+      claimLocalData: userId => {
+        const { ownerUserId } = get();
+        // Ieșire ÎNAINTE de `set`, nu un `set(state => state)`: `persist` rescrie
+        // `localStorage` după ORICE `set`, chiar dacă starea întoarsă e același
+        // obiect — verificarea `Object.is` din Zustand scutește doar abonații, nu
+        // și scrierea (verificat în `zustand/middleware`). Iar cazul ăsta rulează
+        // la fiecare încărcare de pagină, cu tot istoricul de serializat.
+        if (ownerUserId === userId) return;
+        // Un singur `set`: golirea și noul proprietar ajung în `localStorage` în
+        // aceeași scriere, deci nu există o clipă cu datele lui A etichetate B.
+        set(ownerUserId === null ? { ownerUserId: userId } : { ...emptyAccountData(), ownerUserId: userId });
+      },
+
+      clearAccountData: () => set({ ...emptyAccountData(), ownerUserId: null })
     }),
     {
       name: "skillforge-app",
@@ -290,12 +394,17 @@ export const useAppStore = create<AppState>()(
        * acum propria cheie în `localStorage` (`skillforge-theme`), scrisă
        * direct de provider, nu prin acest `persist`. Două locuri care ar ține
        * aceeași preferință seria un comutator care merge pe jumătate.
+       *
+       * `ownerUserId` SE salvează, deși nu e o dată pe care omul o scrie: fără
+       * el, după un refresh nu s-ar mai ști al cui cont sunt conversațiile de
+       * mai sus, adică exact întrebarea la care răspunde.
        */
       partialize: state => ({
         profile: state.profile,
         providerId: state.providerId,
         conversations: state.conversations,
-        activeConversationId: state.activeConversationId
+        activeConversationId: state.activeConversationId,
+        ownerUserId: state.ownerUserId
       }),
 
       /**
@@ -323,6 +432,14 @@ export const useAppStore = create<AppState>()(
        * `messageUsage` din `message-utils.ts` validează explicit ce citește și îl
        * tratează ca „nemăsurat". O migrare ar fi avut ce să facă doar dacă am fi
        * vrut să inventăm consum pentru mesaje vechi — exact ce nu vrem.
+       *
+       * De ce F6.2 NU a crescut versiunea, deși a apărut `ownerUserId`: un câmp
+       * NOU, cu valoare implicită, nu schimbă forma datelor deja salvate. La
+       * rehidratare, `persist` pune ce citește PESTE starea inițială, deci un
+       * `localStorage` vechi, fără câmp, pornește cu `ownerUserId: null` — „date
+       * fără proprietar”, adică exact ce sunt. Mai mult, o versiune nouă ar fi
+       * rulat `migrate` de mai jos, care golește mesajele TUTUROR conversațiilor:
+       * adăugarea unui câmp ar fi șters istoricul fiecărui utilizator.
        */
       version: 3,
 
